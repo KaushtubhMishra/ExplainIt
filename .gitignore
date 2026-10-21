@@ -1,0 +1,25 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+
+# Installed packages and build output
+node_modules/
+dist/
+apps/web/.next/
+apps/web/next-env.d.ts
+*.tsbuildinfo
+.remotion/
+
+# Render inputs copied for each run (videos and audio live on D:)
+packages/video/public/runs/
+packages/video/public/music/
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/
+
+# Editor and OS files
+.vscode/
+.DS_Store
+Thumbs.db
