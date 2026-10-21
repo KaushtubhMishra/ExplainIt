@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* Colours from the Stitch design (explainit_engine/DESIGN.md) */
+@theme {
+  --color-surface: #f9f9ff;
+  --color-surface-low: #f0f3ff;
+  --color-surface-mid: #e7eeff;
+  --color-card: #ffffff;
+  --color-ink: #111c2d;
+  --color-ink-soft: #444650;
+  --color-line: #c4c6d2;
+  --color-navy: #0b2e6b;
+  --color-navy-deep: #001a47;
+  --color-blue: #005db7;
+  --color-blue-soft: #d6e3ff;
+  --color-yellow: #ffd54f;
+  --color-yellow-soft: #ffe087;
+  --color-green: #188038;
+  --font-sans: var(--font-poppins), var(--font-devanagari), ui-sans-serif, system-ui, sans-serif;
+}
+
+html, body { background: var(--color-surface); color: var(--color-ink); }
