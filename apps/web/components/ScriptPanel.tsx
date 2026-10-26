@@ -4,13 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { ScenePlan, type ScenePlanType } from "@shared/schema";
-import { ScriptView } from "./ScriptView";
+import { Storyboard } from "./storyboard/Storyboard";
 
 const HINTS = ["Planning the scenes", "Writing the narration", "Choosing animations for each scene", "Checking facts and length", "Almost there"];
 
-type Props = { projectId: string; initialPlan: unknown; autoStart: boolean };
+type Props = { projectId: string; initialPlan: unknown; initialVersion: number; autoStart: boolean };
 
-export function ScriptPanel({ projectId, initialPlan, autoStart }: Props) {
+export function ScriptPanel({ projectId, initialPlan, initialVersion, autoStart }: Props) {
   const router = useRouter();
   const parsed = initialPlan ? ScenePlan.safeParse(initialPlan) : null;
   const plan: ScenePlanType | null = parsed?.success ? parsed.data : null;
@@ -78,13 +78,13 @@ export function ScriptPanel({ projectId, initialPlan, autoStart }: Props) {
 
       {plan ? (
         <>
-          <ScriptView plan={plan} />
+          {/* key: a rewritten script starts a fresh storyboard */}
+          <Storyboard key={initialVersion} projectId={projectId} initialPlan={plan} initialVersion={initialVersion} />
           <button type="button"
-            onClick={() => { if (confirm("Write a new script? This replaces the current one.")) void write(); }}
+            onClick={() => { if (confirm("Write a completely new script? This replaces the current one, including your edits.")) void write(); }}
             className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-blue py-3 font-semibold text-blue">
-            <RefreshCw className="size-4" aria-hidden /> Write again
+            <RefreshCw className="size-4" aria-hidden /> Write a new script
           </button>
-          <p className="text-center text-sm text-ink-soft">Editing scenes and the live preview arrive in W6 and W7.</p>
         </>
       ) : (
         <section className="rounded-3xl border border-line/60 bg-card p-8 text-center">

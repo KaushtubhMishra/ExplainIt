@@ -2,17 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ClipboardList, Info, Lightbulb, Loader2, PenLine, Plus, Sparkles } from "lucide-react";
+import { Check, ClipboardList, Info, Loader2, PenLine, Plus, Sparkles } from "lucide-react";
 import { INPUT_LIMITS } from "@shared/api";
 
-type Mode = "idea" | "notes" | "brainstorm";
+type Mode = "idea" | "notes";
 type Lang = "en-IN" | "hi-IN";
 type Theme = "auto" | "sky" | "forest" | "sunset" | "night";
 
 const MODES: { id: Mode; label: string; icon: typeof PenLine; soon?: boolean }[] = [
   { id: "idea", label: "Type an idea", icon: PenLine },
   { id: "notes", label: "Paste your notes", icon: ClipboardList },
-  { id: "brainstorm", label: "Brainstorm with AI", icon: Lightbulb, soon: true },
 ];
 
 const THEMES: { id: Theme; label: string; swatch: string }[] = [
@@ -75,7 +74,7 @@ export function CreateForm() {
     <div className="space-y-7">
       <section>
         <h2 className="mb-3 font-semibold text-navy">How do you want to start?</h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {MODES.map(({ id, label, icon: Icon, soon }) => (
             <button key={id} type="button" disabled={soon} onClick={() => { setMode(id); setError(""); }}
               aria-pressed={mode === id} className={`${chip(mode === id, "center")} relative flex flex-col items-center gap-2 px-2 disabled:cursor-not-allowed disabled:opacity-50`}>

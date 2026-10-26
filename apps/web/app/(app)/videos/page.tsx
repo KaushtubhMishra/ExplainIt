@@ -3,7 +3,7 @@ import { Clapperboard } from "lucide-react";
 
 export default function VideosPage() {
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-navy">My videos</h1>
         <p className="mt-1 text-ink-soft">Your explainer videos will appear here.</p>

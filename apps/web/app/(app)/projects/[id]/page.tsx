@@ -17,7 +17,7 @@ export default async function ProjectPage({ params, searchParams }: {
 
   const chips = [LANG[project.language], `${project.duration_target} sec`, THEME[project.theme], MODE[project.input_mode]];
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-5xl space-y-5">
       <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue">
         <ArrowLeft className="size-4" aria-hidden /> Back to Create
       </Link>
@@ -34,7 +34,7 @@ export default async function ProjectPage({ params, searchParams }: {
           </details>
         )}
       </section>
-      <ScriptPanel projectId={project.id} initialPlan={project.scene_plan} autoStart={write === "1"} />
+      <ScriptPanel projectId={project.id} initialPlan={project.scene_plan} initialVersion={project.plan_version} autoStart={write === "1"} />
     </div>
   );
 }

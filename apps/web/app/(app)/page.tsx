@@ -6,7 +6,7 @@ import { recentDrafts } from "@/lib/projects";
 export default async function CreatePage() {
   const [user, drafts] = await Promise.all([requireUser(), recentDrafts()]);
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-3xl space-y-8">
       <section className="rounded-3xl bg-gradient-to-br from-surface-mid to-blue-soft p-6 shadow-sm">
         <h1 className="text-2xl font-bold leading-tight text-navy">Namaste, {user.name}! What shall we explain today?</h1>
         <p className="mt-2 text-ink-soft">Pick a topic, review the script, then render your video.</p>

@@ -16,7 +16,10 @@ timings -> a timeline turns timings into frames -> Remotion renders the MP4.
 
 ```
 apps/web/                Next.js 16 website (App Router): the user interface and API
-  app/(app)/             signed-in pages: Create (/), My videos (/videos), Settings (/settings)
+  app/(app)/             signed-in pages: Create (/), My videos (/videos), Settings (/settings),
+                         project storyboard (/projects/[id])
+  app/api/projects/      create, save edits (PATCH), write script, revise (change requests)
+  components/storyboard/ storyboard: scene editor, autosave, live preview, change requests
   app/login/             sign-in page (email link, Google)
   app/auth/              sign-in callback and sign-out routes
   proxy.ts               runs before every page: refreshes the session, guards pages
@@ -98,6 +101,14 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
   `providers/voice.ts` or the Remotion code into `apps/web`.
 - Supabase's built-in email service sends only a few emails per hour; use password sign-in
   while developing.
+- The storyboard preview (`apps/web/components/storyboard/PreviewPlayer.tsx`) renders the real
+  templates from `packages/video` with `@remotion/player`. All `remotion` and `@remotion/*` packages,
+  in both the root and `apps/web`, must stay on exactly the same version (currently 4.0.532).
+  The website serves the template fonts from `apps/web/public/fonts`.
+- Autosave sends the plan with its `planVersion`; a 409 means another tab saved first. Never
+  bypass the version check.
+- Grid layouts that contain text inputs need `minmax(0,1fr)` columns and `min-w-0`, or they
+  overflow the screen on phones.
 
 ## Coding style
 

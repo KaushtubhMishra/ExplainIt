@@ -20,7 +20,7 @@ async function databaseStatus(): Promise<{ ok: boolean; detail: string }> {
 export default async function SettingsPage() {
   const [user, db] = await Promise.all([requireUser(), databaseStatus()]);
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-3xl space-y-4">
       <h1 className="text-2xl font-bold text-navy">Settings</h1>
       <section className="flex items-center gap-4 rounded-2xl border border-line/60 bg-card p-5">
         <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-navy text-lg font-bold text-card" aria-hidden>

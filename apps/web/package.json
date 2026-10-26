@@ -15,7 +15,11 @@
     "next": "16.4.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "@remotion/player": "4.0.532",
+    "remotion": "4.0.532",
+    "@remotion/transitions": "4.0.532",
+    "@remotion/fonts": "4.0.532"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",

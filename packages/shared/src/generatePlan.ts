@@ -84,6 +84,74 @@ function validate(text: string, durationTarget: DurationTargetType, themeChoice:
     : { plan: parsed.data, errors: [], warnings: [...fixes, ...warnings] };
 }
 
+type LoopArgs = {
+  system: string;
+  user: string;
+  chain: LLMProvider[];
+  maxRepairs: number;
+  log: (line: string) => void;
+  check: (text: string) => { plan?: ScenePlanType; errors: string[]; warnings: string[] };
+  promptName: string;
+};
+
+// Ask the model, check its answer, and send problems back for repair, falling back to
+// the next provider only when one is unavailable. Shared by writing and revising.
+async function runPlanLoop(a: LoopArgs): Promise<{ plan?: ScenePlanType; report: PlanReport }> {
+  const started = Date.now();
+  const report: PlanReport = {
+    ok: false, prompt: a.promptName, providersTried: [], attempts: 0, repairs: 0,
+    seconds: 0, warnings: [], lastErrors: [],
+  };
+  for (const provider of a.chain) {
+    report.providersTried.push(provider.name);
+    const messages: Msg[] = [{ role: "user", content: a.user }];
+    try {
+      for (let i = 0; i <= a.maxRepairs; i++) {
+        a.log(`${provider.name}: ${i === 0 ? "writing" : `fixing (repair ${i})`}...`);
+        report.attempts++;
+        if (i > 0) report.repairs++;
+        const callStart = Date.now();
+        const heartbeat = setInterval(() => {
+          a.log(`  still working... ${Math.round((Date.now() - callStart) / 1000)}s`);
+        }, 20000);
+        let text: string;
+        try {
+          text = await provider.generateText({ system: a.system, messages, json: true });
+        } finally {
+          clearInterval(heartbeat);
+        }
+        a.log(`  answer received in ${Math.round((Date.now() - callStart) / 1000)}s`);
+        const result = a.check(text);
+        if (result.plan) {
+          Object.assign(report, {
+            ok: true, provider: provider.name, warnings: result.warnings, lastErrors: [],
+            words: totalWords(result.plan), scenes: result.plan.scenes.length,
+            templates: result.plan.scenes.map((sc) => sc.content.template),
+            seconds: Math.round((Date.now() - started) / 1000),
+          });
+          return { plan: result.plan, report };
+        }
+        report.lastErrors = result.errors;
+        a.log(`  problems: ${result.errors.join(" | ")}`);
+        messages.push({ role: "assistant", content: text });
+        messages.push({
+          role: "user",
+          content: `Your JSON has these problems:\n- ${result.errors.join("\n- ")}\nReturn the complete corrected JSON object only.`,
+        });
+      }
+      break; // repairs used up on this provider: don't burn the fallbacks
+    } catch (err) {
+      if (err instanceof ProviderUnavailableError) {
+        a.log(`  ${err.message}; trying the next provider.`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  report.seconds = Math.round((Date.now() - started) / 1000);
+  return { report };
+}
+
 export async function generatePlan(args: {
   topic: string;
   language: LanguageType;
@@ -94,64 +162,48 @@ export async function generatePlan(args: {
   maxRepairs?: number;
   log?: (line: string) => void;
 }): Promise<{ plan?: ScenePlanType; report: PlanReport }> {
-  const log = args.log ?? (() => {});
-  const maxRepairs = args.maxRepairs ?? 2;
-  const started = Date.now();
   const durationTarget = args.durationTarget ?? 60;
   const themeChoice = args.themeChoice ?? "auto";
   const { system, user } = buildScriptPrompt({ ...args, durationTarget, themeChoice });
-  const report: PlanReport = {
-    ok: false, prompt: SCRIPT_PROMPT_VERSION, providersTried: [], attempts: 0, repairs: 0,
-    seconds: 0, warnings: [], lastErrors: [],
-  };
+  const topicText = `${args.topic}\n${args.notes ?? ""}`;
+  return runPlanLoop({
+    system, user, chain: args.chain, maxRepairs: args.maxRepairs ?? 2, log: args.log ?? (() => {}),
+    check: (text) => validate(text, durationTarget, themeChoice, topicText), promptName: SCRIPT_PROMPT_VERSION,
+  });
+}
 
-  for (const provider of args.chain) {
-    report.providersTried.push(provider.name);
-    const messages: Msg[] = [{ role: "user", content: user }];
-    try {
-      for (let i = 0; i <= maxRepairs; i++) {
-        log(`${provider.name}: ${i === 0 ? "writing the script" : `fixing the script (repair ${i})`}...`);
-        report.attempts++;
-        if (i > 0) report.repairs++;
-        const callStart = Date.now();
-        const heartbeat = setInterval(() => {
-          log(`  still working... ${Math.round((Date.now() - callStart) / 1000)}s`);
-        }, 20000);
-        let text: string;
-        try {
-          text = await provider.generateText({ system, messages, json: true });
-        } finally {
-          clearInterval(heartbeat);
-        }
-        log(`  answer received in ${Math.round((Date.now() - callStart) / 1000)}s`);
-        const result = validate(text, durationTarget, themeChoice, `${args.topic}\n${args.notes ?? ""}`);
-        if (result.plan) {
-          Object.assign(report, {
-            ok: true, provider: provider.name, warnings: result.warnings, lastErrors: [],
-            words: totalWords(result.plan), scenes: result.plan.scenes.length,
-            templates: result.plan.scenes.map((s) => s.content.template),
-            seconds: Math.round((Date.now() - started) / 1000),
-          });
-          return { plan: result.plan, report };
-        }
-        report.lastErrors = result.errors;
-        log(`  problems: ${result.errors.join(" | ")}`);
-        messages.push({ role: "assistant", content: text });
-        messages.push({
-          role: "user",
-          content: `Your JSON has these problems:\n- ${result.errors.join("\n- ")}\nReturn the complete corrected JSON object only.`,
-        });
-      }
-      // Repairs used up on this provider: stop here rather than burning the fallbacks.
-      break;
-    } catch (err) {
-      if (err instanceof ProviderUnavailableError) {
-        log(`  ${err.message}; trying the next provider.`);
-        continue;
-      }
-      throw err;
-    }
-  }
-  report.seconds = Math.round((Date.now() - started) / 1000);
-  return { report };
+// Scenes whose content differs between two plans (new scenes count as changed).
+export function changedScenes(before: ScenePlanType, after: ScenePlanType): string[] {
+  const old = new Map(before.scenes.map((sc) => [sc.id, JSON.stringify(sc)]));
+  return after.scenes.filter((sc) => old.get(sc.id) !== JSON.stringify(sc)).map((sc) => sc.id);
+}
+
+// Apply a plain-language change request ("make scene 3 simpler") to an existing plan.
+export async function revisePlan(args: {
+  plan: ScenePlanType;
+  request: string;
+  topicText: string;
+  chain: LLMProvider[];
+  maxRepairs?: number;
+  log?: (line: string) => void;
+}): Promise<{ plan?: ScenePlanType; report: PlanReport; changedSceneIds: string[] }> {
+  const durationTarget = args.plan.durationTarget ?? 60;
+  const { system } = buildScriptPrompt({
+    topic: args.plan.title, language: args.plan.language, durationTarget, themeChoice: args.plan.theme,
+  });
+  const reviseRules = `
+
+You are now REVISING an existing plan, not writing a new one.
+- Change only what the user's request asks for. Keep every other scene exactly the same, including its id, narration, and content.
+- Keep scene ids stable. If you add a scene, give it the next unused id (for example "s8").
+- "Scene N" in the request means the Nth scene in the list.
+- The result must still follow every rule above (length, hook first, recap last).
+- Return the complete revised plan JSON only.`;
+  const user = `Current plan:\n${JSON.stringify(args.plan)}\n\nChange request: ${args.request}`;
+  const result = await runPlanLoop({
+    system: system + reviseRules, user, chain: args.chain, maxRepairs: args.maxRepairs ?? 2,
+    log: args.log ?? (() => {}), promptName: "revise.v1",
+    check: (text) => validate(text, durationTarget, args.plan.theme, args.topicText),
+  });
+  return { ...result, changedSceneIds: result.plan ? changedScenes(args.plan, result.plan) : [] };
 }
