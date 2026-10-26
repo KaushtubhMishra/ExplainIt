@@ -40,7 +40,7 @@ For each case, record PASS, FAIL, or BLOCKED, plus a screenshot for any FAIL.
 
 | ID | Steps | Expected |
 |---|---|---|
-| W1-1 | Run `npm run db:check` | Ends with "All 15 checks passed. The database is ready." |
+| W1-1 | Run `npm run db:check` | Ends with "All 19 checks passed. The database is ready." |
 
 ### W2: Web app frame
 

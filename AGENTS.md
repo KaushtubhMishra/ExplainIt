@@ -47,7 +47,7 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
 | `npm run voice [-- <run folder>]` | Voice the latest (or named) plan |
 | `npm run render [-- <run folder>]` | Render the MP4 |
 | `npm run make-video -- "topic" [same flags]` | Plan, voice, and render in one go |
-| `npm run db:check` | 15-point end-to-end database check with a temporary user |
+| `npm run db:check` | 19-point end-to-end database check (including cross-user access) with a temporary user |
 | `npm run user:password -- you@example.com` | Create an account or set/reset its password (master key, no email sent) |
 | `npx supabase db push` | Apply new migrations to the linked Supabase project |
 
