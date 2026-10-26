@@ -29,6 +29,9 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(p));
 
+  // API routes check sign-in themselves and answer with a JSON error, not a redirect.
+  if (path.startsWith("/api/")) return response;
+
   if (!signedIn && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
