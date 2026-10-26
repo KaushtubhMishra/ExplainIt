@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CircleUserRound, Play } from "lucide-react";
+import { Play } from "lucide-react";
+import { AccountMenu } from "./AccountMenu";
 import { NAV_ITEMS, isActive } from "./nav-items";
 
 // Top bar on every signed-in page. Renderer status and the renders counter become live in W12.
-export function TopBar() {
+export function TopBar({ name, email }: { name: string; email: string }) {
   const pathname = usePathname();
   return (
     <header className="sticky top-0 z-20 border-b border-line/60 bg-card/90 pt-[env(safe-area-inset-top)] backdrop-blur">
@@ -35,9 +36,7 @@ export function TopBar() {
           <span className="hidden whitespace-nowrap rounded-full bg-blue-soft px-3 py-1 text-xs font-semibold text-navy sm:inline">
             Renders today 0/5
           </span>
-          <span className="flex size-9 items-center justify-center rounded-full bg-navy" aria-label="Account">
-            <CircleUserRound className="size-5 text-card" aria-hidden />
-          </span>
+          <AccountMenu name={name} email={email} />
         </div>
       </div>
     </header>
