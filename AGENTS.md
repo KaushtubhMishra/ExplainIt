@@ -45,6 +45,7 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
 | `npm run render [-- <run folder>]` | Render the MP4 |
 | `npm run make-video -- "topic" [same flags]` | Plan, voice, and render in one go |
 | `npm run db:check` | 15-point end-to-end database check with a temporary user |
+| `npm run user:password -- you@example.com` | Create an account or set/reset its password (master key, no email sent) |
 | `npx supabase db push` | Apply new migrations to the linked Supabase project |
 
 ## Rules that must not be broken
@@ -82,8 +83,10 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
 - **Rendering** runs on the owner's laptop (4-core CPU, no GPU), about 2-3 minutes per video.
 - **Videos** are deleted from storage at 23:59 IST on the day they are made.
 - **No background music** in V1.
-- **Sign-in:** Supabase Auth with email link and Google. `proxy.ts` sends signed-out
-  visitors to /login (Next.js 16 renamed middleware to proxy).
+- **Sign-in:** Supabase Auth. Password is the main method; email link and Google are
+  options. There is no public sign-up: accounts are created with `npm run user:password`.
+  `proxy.ts` sends signed-out visitors to /login (Next.js 16 renamed middleware to proxy).
+  API routes (`/api/*`) are not redirected; they return a JSON 401 themselves.
 
 ## Coding style
 

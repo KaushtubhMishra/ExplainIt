@@ -13,7 +13,8 @@
     "studio": "remotion studio packages/video/src/index.ts --public-dir packages/video/public",
     "db:check": "tsx scripts/db-check.ts",
     "dev": "npm run dev -w apps/web",
-    "web:build": "npm run build -w apps/web"
+    "web:build": "npm run build -w apps/web",
+    "user:password": "tsx scripts/set-password.ts"
   },
   "dependencies": {
     "@google/genai": "^1.20.0",

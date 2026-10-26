@@ -1,23 +1,48 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Mail, MailCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { KeyRound, Loader2, Mail, MailCheck } from "lucide-react";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 type Props = { next: string; googleReady: boolean; initialError?: string };
 
 // Plain-language versions of Supabase's sign-in errors.
 function friendly(message: string): string {
+  if (/invalid login credentials/i.test(message)) return "That email and password don't match. Check both and try again.";
+  if (/email not confirmed/i.test(message)) return "This account isn't confirmed yet. Set its password with: npm run user:password";
   if (/rate limit/i.test(message)) return "Too many sign-in emails were sent in the last hour. Please wait a little and try again.";
   if (/invalid.*email|email.*invalid/i.test(message)) return "That email address doesn't look right.";
   return message;
 }
 
 export function LoginForm({ next, googleReady, initialError }: Props) {
+  const router = useRouter();
+  const [method, setMethod] = useState<"password" | "link">("password");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState(initialError ?? "");
   const callback = (path: string) => `${window.location.origin}/auth/callback?next=${encodeURIComponent(path)}`;
+
+  async function signInWithPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!/^\S+@\S+\.\S+$/.test(email.trim()) || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+    setState("sending");
+    const { error } = await createSupabaseBrowser().auth.signInWithPassword({ email: email.trim(), password });
+    if (error) {
+      setError(friendly(error.message));
+      setState("idle");
+      return;
+    }
+    // The session is now in cookies; load the page they wanted.
+    router.replace(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+    router.refresh();
+  }
 
   async function sendLink(e: React.FormEvent) {
     e.preventDefault();
@@ -67,13 +92,23 @@ export function LoginForm({ next, googleReady, initialError }: Props) {
         className="flex w-full items-center justify-center gap-3 rounded-2xl bg-surface-low py-3.5 font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50">
         <span className="text-lg font-bold text-blue" aria-hidden>G</span> Continue with Google
       </button>
-      {!googleReady && <p className="mt-2 text-center text-xs text-ink-soft">Google sign-in isn&apos;t set up yet. Use the email link below.</p>}
+      {!googleReady && <p className="mt-2 text-center text-xs text-ink-soft">Google sign-in isn&apos;t set up yet. Use your password or an email link below.</p>}
 
       <div className="my-5 flex items-center gap-3 text-xs font-semibold text-ink-soft">
         <span className="h-px flex-1 bg-line" /> OR <span className="h-px flex-1 bg-line" />
       </div>
 
-      <form onSubmit={sendLink} noValidate>
+      <div className="mb-4 grid grid-cols-2 gap-1 rounded-2xl bg-surface-mid p-1" role="tablist" aria-label="Sign-in method">
+        {([["password", "Password"], ["link", "Email link"]] as const).map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={method === id}
+            onClick={() => { setMethod(id); setError(""); }}
+            className={`rounded-xl py-2 text-sm font-semibold ${method === id ? "bg-card text-blue shadow-sm" : "text-ink-soft"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={method === "password" ? signInWithPassword : sendLink} noValidate>
         <label htmlFor="email" className="text-xs font-semibold text-ink-soft">Your email</label>
         <div className="mt-1.5 flex items-center gap-2 rounded-2xl bg-surface-low px-4 focus-within:ring-2 focus-within:ring-blue">
           <Mail className="size-5 text-ink-soft" aria-hidden />
@@ -81,15 +116,32 @@ export function LoginForm({ next, googleReady, initialError }: Props) {
             onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com"
             className="w-full bg-transparent py-3.5 outline-none placeholder:text-ink-soft/60" />
         </div>
+        {method === "password" && (
+          <>
+            <label htmlFor="password" className="mt-4 block text-xs font-semibold text-ink-soft">Password</label>
+            <div className="mt-1.5 flex items-center gap-2 rounded-2xl bg-surface-low px-4 focus-within:ring-2 focus-within:ring-blue">
+              <KeyRound className="size-5 text-ink-soft" aria-hidden />
+              <input id="password" type="password" autoComplete="current-password" required value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-transparent py-3.5 outline-none" />
+            </div>
+          </>
+        )}
         <button type="submit" disabled={state === "sending"}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-blue py-3.5 font-semibold text-card disabled:opacity-70">
           {state === "sending" && <Loader2 className="size-4 animate-spin" aria-hidden />}
-          {state === "sending" ? "Sending…" : "Send me a sign-in link"}
+          {state === "sending"
+            ? (method === "password" ? "Signing in…" : "Sending…")
+            : (method === "password" ? "Sign in" : "Send me a sign-in link")}
         </button>
       </form>
 
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      <p className="mt-4 text-center text-xs text-ink-soft">Free to use. No password needed.</p>
+      <p className="mt-4 text-center text-xs text-ink-soft">
+        {method === "password"
+          ? "Forgot your password? Reset it on your laptop with: npm run user:password"
+          : "The email link needs no password. Supabase sends only a few emails per hour."}
+      </p>
     </section>
   );
 }
