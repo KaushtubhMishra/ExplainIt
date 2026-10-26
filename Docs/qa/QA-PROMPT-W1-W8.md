@@ -119,18 +119,19 @@ Uses AI requests. Run W5-1, W5-3, and W5-4 only (3 requests).
 
 ### W8: Change requests
 
-Uses AI requests. Run W8-1 and W8-3 only (2 requests).
+Uses AI requests. Run W8-1, W8-2b, and W8-3 only (3 requests).
 
 | ID | Steps | Expected |
 |---|---|---|
 | W8-1 | Type "Make scene 2 simpler" and send | "Making the change..." shows; then a reply like "Updated scene 2. The other scenes stayed the same."; scene 2 gets a yellow "Changed" badge and is selected in the preview |
-| W8-2 | Compare the other scenes before and after W8-1 | Their narration and on-screen text did not change |
+| W8-2 | Compare the other scenes before and after W8-1, field by field | Their narration and every on-screen text field are byte-for-byte unchanged — not just similar |
+| W8-2b | On a project with 6 or more scenes, edit scene 1's narration (add a short marker word you'll recognise), wait for "Saved", then send "Make scene 4 simpler" | Scene 1 still shows your marker word afterward; only scene 4 gets the "Changed" badge; scenes 2, 3, 5, 6... are byte-for-byte unchanged |
 | W8-3 | Make an edit, and within a second send a change request | The edit is kept (it is saved before the change request runs) |
 | W8-4 | Type two letters in the request box | The send button stays disabled |
 | W8-5 | Click a suggestion chip | It fills the request box (do not send) |
 | W8-6 | "Write a new script" button, then Cancel in the confirm dialog | Nothing changes |
-| W8-7 | Send "Use the sunset theme" (uses 1 AI request; optional) | Reply says "Switched the colour theme to sunset"; the preview turns pink-orange; the project chip shows Sunset after a reload |
-| W8-8 | Send "Make it simpler and explain why the sky is blue" (uses 1 AI request; optional) | The scenes may change, but the colour theme must NOT change: only requests naming "theme" or "colour"/"color" switch it |
+| W8-7 | On a project with a known starting theme (for example Sky), send "Use the sunset theme" (uses 1 AI request; optional) | Reply says "Switched the colour theme to sunset"; the preview turns pink-orange; the project chip shows Sunset immediately, with no reload needed |
+| W8-8 | On that same project (now Sunset), send "Make it simpler and explain why the sky is blue" (uses 1 AI request; optional) | The scenes may change, but the colour theme must stay Sunset: only requests naming "theme" or "colour"/"color" switch it. Starting from a known theme (not Auto) makes an accidental switch obvious |
 
 ### General checks (all pages)
 

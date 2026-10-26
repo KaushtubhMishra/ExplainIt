@@ -61,6 +61,29 @@ export function requestedTheme(request: string): "sky" | "forest" | "sunset" | "
   return null;
 }
 
+// Scene numbers a change request explicitly names ("scene 4", "scenes 2 and 3"). Matches
+// the "Scene N" convention used in the revise prompt (1-based, by position). Returns null
+// when no scene is named, meaning the request is free to touch the whole plan.
+export function targetedSceneNumbers(request: string): number[] | null {
+  const nums = new Set<number>();
+  for (const m of request.matchAll(/\bscenes?\b[^.?!]{0,60}/gi)) {
+    for (const numStr of m[0].match(/\d+/g) ?? []) nums.add(Number(numStr));
+  }
+  return nums.size ? [...nums].sort((a, b) => a - b) : null;
+}
+
+// After a revision, force every scene the user did NOT name back to its exact original
+// content. The model is told to leave other scenes untouched, but does not reliably do
+// so on its own, so this is enforced here rather than trusted to the prompt alone.
+export function mergeTargetedScenes(
+  original: ScenePlanType, candidate: ScenePlanType, targetNumbers: number[],
+): ScenePlanType {
+  if (candidate.scenes.length !== original.scenes.length) return candidate; // too different to merge safely
+  const targetIdx = new Set(targetNumbers.map((n) => n - 1));
+  const scenes = original.scenes.map((origScene, i) => (targetIdx.has(i) ? candidate.scenes[i] : origScene));
+  return { ...candidate, scenes };
+}
+
 // Does the user's topic actually ask about differences? (English and Hindi wording.)
 const CONTRAST_WORDS = /\b(vs\.?|versus|differ\w*|compar\w*|contrast\w*|better than)\b|बनाम|अंतर|फ़?फर्क|तुलना/i;
 export const topicAsksForComparison = (topicText: string) => CONTRAST_WORDS.test(topicText);
@@ -87,8 +110,10 @@ export function checkPlanRules(plan: ScenePlanType, opts: { topicText?: string }
 
   const words = totalWords(plan);
   const range = wordRangeFor(plan.language, plan.durationTarget);
-  if (words < range.min || words > range.max) {
-    errors.push(`Total narration is ${words} words; it must be between ${range.min} and ${range.max}.`);
+  if (words < range.min) {
+    errors.push(`Total narration is ${words} words; it must be between ${range.min} and ${range.max}. Add about ${range.min - words} to ${range.max - words} more words, spread across the scenes.`);
+  } else if (words > range.max) {
+    errors.push(`Total narration is ${words} words; it must be between ${range.min} and ${range.max}. Remove about ${words - range.max} to ${words - range.min} words, spread across the scenes.`);
   }
 
   const ids = plan.scenes.map((s) => s.id);

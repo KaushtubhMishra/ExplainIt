@@ -1,5 +1,5 @@
 import { ScenePlan, type DurationTargetType, type LanguageType, type ScenePlanType, type ThemeChoiceType } from "./schema";
-import { checkPlanRules, totalWords } from "./rules";
+import { checkPlanRules, mergeTargetedScenes, targetedSceneNumbers, totalWords } from "./rules";
 import { buildScriptPrompt, SCRIPT_PROMPT_VERSION } from "./prompts/script.v1";
 import { ProviderUnavailableError, type LLMProvider, type Msg } from "./providers/llm";
 
@@ -203,10 +203,31 @@ You are now REVISING an existing plan, not writing a new one.
 - The result must still follow every rule above (length, hook first, recap last).
 - Return the complete revised plan JSON only.`;
   const user = `Current plan:\n${JSON.stringify(args.plan)}\n\nChange request: ${args.request}`;
+  // When the request names specific scenes, the prompt alone isn't trusted to leave the
+  // rest of the plan untouched: any scene not named is forced back to its exact original
+  // content after the model answers, so an edit can never be lost and only the named
+  // scene(s) can change. A request with no scene number ("shorten the intro") is free to
+  // touch the whole plan, as before.
+  const targetScenes = targetedSceneNumbers(args.request);
   const result = await runPlanLoop({
     system: system + reviseRules, user, chain: args.chain, maxRepairs: args.maxRepairs ?? 2,
     log: args.log ?? (() => {}), promptName: "revise.v1",
-    check: (text) => validate(text, args.plan.language, durationTarget, theme, args.topicText),
+    check: (text) => {
+      const base = validate(text, args.plan.language, durationTarget, theme, args.topicText);
+      if (!base.plan || !targetScenes) return base;
+      const merged = mergeTargetedScenes(args.plan, base.plan, targetScenes);
+      const mergedCheck = checkPlanRules(merged, { topicText: args.topicText });
+      if (mergedCheck.errors.length) {
+        return {
+          errors: [
+            ...mergedCheck.errors,
+            `Only change scene${targetScenes.length > 1 ? "s" : ""} ${targetScenes.join(", ")}. Every other scene must be returned exactly as given, with no wording changed.`,
+          ],
+          warnings: base.warnings,
+        };
+      }
+      return { plan: merged, errors: [], warnings: [...base.warnings, ...mergedCheck.warnings] };
+    },
   });
   return { ...result, changedSceneIds: result.plan ? changedScenes(args.plan, result.plan) : [] };
 }

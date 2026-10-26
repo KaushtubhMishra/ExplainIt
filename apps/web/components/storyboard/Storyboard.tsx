@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertCircle, Check, CloudOff, Loader2, RefreshCw, Send, Sparkles } from "lucide-react";
 import { totalWords, wordRangeFor } from "@shared/rules";
 import { ScenePlan, type ScenePlanType, type SceneType } from "@shared/schema";
+import { useProjectTheme } from "../project-theme";
 import { SceneEditor } from "./SceneEditor";
 
 // The player runs only in the browser.
@@ -24,6 +25,7 @@ export function Storyboard({ projectId, initialPlan, initialVersion, onRewrite }
   onRewrite: (planVersion: number) => void;
 }) {
   const router = useRouter();
+  const { setTheme: setProjectTheme } = useProjectTheme();
   const [plan, setPlan] = useState(initialPlan);
   const [previewPlan, setPreviewPlan] = useState(initialPlan); // follows edits after a pause in typing
   const [selected, setSelected] = useState(0);
@@ -167,6 +169,7 @@ export function Storyboard({ projectId, initialPlan, initialVersion, onRewrite }
       setReplayKey((k) => k + 1); // replay the (possibly already-selected) scene from the start
       setReply({ ok: true, text: body.reply });
       setRequest("");
+      setProjectTheme(next.theme); // keeps the page's theme chip in sync, with no page reload or remount
     } catch {
       setReply({ ok: false, text: "Couldn't reach the server. Please try again." });
     } finally {

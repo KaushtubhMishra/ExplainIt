@@ -62,7 +62,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (report.attempts === 0 || report.lastErrors.length === 0) {
       return apiError(503, "llm_unavailable", "The script writer is busy right now. Please try again in a minute.");
     }
-    return apiError(502, "script_failed", "Couldn't write a script that passed all checks. Try rephrasing your topic.", {
+    // This isn't usually about the topic — it's the AI occasionally missing the word range or
+    // scene rules — so the message doesn't blame it; trying again almost always works.
+    return apiError(502, "script_failed", "Couldn't write a script that fit all the rules this time. Please try again.", {
       problems: report.lastErrors,
     });
   }
