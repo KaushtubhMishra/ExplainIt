@@ -47,7 +47,7 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
 | `npm run voice [-- <run folder>]` | Voice the latest (or named) plan |
 | `npm run render [-- <run folder>]` | Render the MP4 |
 | `npm run make-video -- "topic" [same flags]` | Plan, voice, and render in one go |
-| `npm run db:check` | 19-point end-to-end database check (including cross-user access) with a temporary user |
+| `npm run db:check` | 20-point end-to-end database check (including cross-user access) with a temporary user |
 | `npm run user:password -- you@example.com` | Create an account or set/reset its password (master key, no email sent) |
 | `npx supabase db push` | Apply new migrations to the linked Supabase project |
 
@@ -69,8 +69,16 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
    function**, which checks ownership and the version and copies the plan from the project.
    There is no insert policy on `jobs`. The worker must still re-validate every job's plan with
    `ScenePlan` and `checkPlanRules` before rendering, and fail the job if it doesn't pass.
-9. **Model output never decides the project's language, length, or theme.** `validate()` in
-   `generatePlan.ts` overwrites them from the project; keep it that way.
+9. **Users can't write plans directly.** Signed-in users may insert projects and update only
+   `title` and `theme` (column privileges). Plans change only through `save_plan()`, which checks
+   ownership, the version, 5-10 scenes, and the project's language and length.
+10. **The AI allowance is reserved before calling Gemini**, with `reserve_llm_call()` (per-user
+   lock, counts real Gemini calls, 40 per hour), then recorded with `finish_llm_call()`. Use the
+   helpers in `apps/web/lib/api.ts`; never call Gemini from a route without a reservation.
+11. **Model output never decides the project's language, length, or theme.** `validate()` in
+   `generatePlan.ts` overwrites them from the project; keep it that way. The one exception is a
+   change request that explicitly asks for a theme ("make it sunset"): `requestedTheme()` detects
+   it and the revise route applies it to the plan and the project.
 5. **Do not commit or push.** The owner reviews each feature and pushes to GitHub himself.
    Leave changes uncommitted unless he asks. Each feature arrives as a zip containing the whole
    repository, which replaces the local copy: tell the owner about any local change (a branch,
@@ -88,7 +96,7 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
 - **Voice:** edge-tts, Neerja (English) and Swara (Hindi), at +10% speed. Azure Speech free
   tier is the planned automatic backup. ElevenLabs is set aside (its free plan cannot use
   library voices through the API).
-- **LLM:** Gemini Flash, then Flash-Lite, with `GEMINI_THINKING=MINIMAL`. Ollama is manual
+- **LLM:** Gemini Flash, then Flash-Lite, with `GEMINI_THINKING=MINIMAL` (also the code default). Ollama is manual
   only (too slow on this laptop's CPU).
 - **Theme:** the user picks auto, sky, forest, sunset, or night. The code sets a chosen
   theme after Gemini writes the plan; "auto" lets Gemini choose.

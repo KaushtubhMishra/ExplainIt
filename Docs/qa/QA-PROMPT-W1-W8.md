@@ -10,8 +10,9 @@ find bugs, and write a clear report. You test; you do not fix.
 2. Do not change any code or files in the project, and do not run `git` commands that change history.
 3. Do not run `npx supabase db push`, delete database rows, or change Supabase settings.
 4. Sign in only with the test account the owner gives you. Do not create other accounts.
-5. Writing a script uses the owner's free Gemini quota (20 AI requests per hour). Use at most
-   12 AI requests in total (scripts plus change requests). Do not deliberately hit the limit.
+5. Writing a script uses the owner's free Gemini quota (40 Gemini calls per hour; one script or
+   change request can use up to 6). Run at most 6 AI requests in total (scripts plus change
+   requests). Do not deliberately hit the limit.
 6. If something blocks you (the server will not start, sign-in fails), stop, record it, and report.
 
 ## About the app (what exists today)
@@ -40,7 +41,7 @@ For each case, record PASS, FAIL, or BLOCKED, plus a screenshot for any FAIL.
 
 | ID | Steps | Expected |
 |---|---|---|
-| W1-1 | Run `npm run db:check` | Ends with "All 19 checks passed. The database is ready." |
+| W1-1 | Run `npm run db:check` | Ends with "All 20 checks passed. The database is ready." |
 
 ### W2: Web app frame
 
@@ -128,6 +129,7 @@ Uses AI requests. Run W8-1 and W8-3 only (2 requests).
 | W8-4 | Type two letters in the request box | The send button stays disabled |
 | W8-5 | Click a suggestion chip | It fills the request box (do not send) |
 | W8-6 | "Write a new script" button, then Cancel in the confirm dialog | Nothing changes |
+| W8-7 | Send "Make it sunset" (uses 1 AI request; optional) | Reply says "Switched the colour theme to sunset"; the preview turns pink-orange; the project chip shows Sunset after a reload |
 
 ### General checks (all pages)
 

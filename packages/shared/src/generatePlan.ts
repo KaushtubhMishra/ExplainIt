@@ -183,14 +183,16 @@ export function changedScenes(before: ScenePlanType, after: ScenePlanType): stri
 export async function revisePlan(args: {
   plan: ScenePlanType;
   request: string;
+  themeOverride?: ScenePlanType["theme"]; // set when the request asks for a different theme
   topicText: string;
   chain: LLMProvider[];
   maxRepairs?: number;
   log?: (line: string) => void;
 }): Promise<{ plan?: ScenePlanType; report: PlanReport; changedSceneIds: string[] }> {
   const durationTarget = args.plan.durationTarget ?? 60;
+  const theme = args.themeOverride ?? args.plan.theme;
   const { system } = buildScriptPrompt({
-    topic: args.plan.title, language: args.plan.language, durationTarget, themeChoice: args.plan.theme,
+    topic: args.plan.title, language: args.plan.language, durationTarget, themeChoice: theme,
   });
   const reviseRules = `
 
@@ -204,7 +206,7 @@ You are now REVISING an existing plan, not writing a new one.
   const result = await runPlanLoop({
     system: system + reviseRules, user, chain: args.chain, maxRepairs: args.maxRepairs ?? 2,
     log: args.log ?? (() => {}), promptName: "revise.v1",
-    check: (text) => validate(text, args.plan.language, durationTarget, args.plan.theme, args.topicText),
+    check: (text) => validate(text, args.plan.language, durationTarget, theme, args.topicText),
   });
   return { ...result, changedSceneIds: result.plan ? changedScenes(args.plan, result.plan) : [] };
 }

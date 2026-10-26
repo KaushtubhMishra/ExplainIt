@@ -56,10 +56,10 @@ export function CreateForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ language, durationTarget: length, theme, inputMode: mode, inputText: trimmed }),
       });
-      const body = await res.json();
+      const body = await res.json().catch(() => null);
       if (!res.ok) {
         if (res.status === 401) { router.push("/login"); return; }
-        setError(body?.error?.message ?? "Something went wrong. Please try again.");
+        setError(body?.error?.message ?? `The server had a problem (error ${res.status}). Please try again.`);
         setBusy(false);
         return;
       }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Check, CloudOff, Loader2, Send, Sparkles } from "lucide-react";
+import { AlertCircle, Check, CloudOff, Loader2, RefreshCw, Send, Sparkles } from "lucide-react";
 import { totalWords, wordRangeFor } from "@shared/rules";
 import { ScenePlan, type ScenePlanType, type SceneType } from "@shared/schema";
 import { SceneEditor } from "./SceneEditor";
@@ -19,11 +19,13 @@ type SaveState = "saved" | "unsaved" | "saving" | "invalid" | "error" | "conflic
 const SUGGESTIONS = ["Make scene 2 simpler", "Shorten the intro", "Add a real-life example"];
 const AUTOSAVE_DELAY_MS = 1000;
 
-export function Storyboard({ projectId, initialPlan, initialVersion }: {
+export function Storyboard({ projectId, initialPlan, initialVersion, onRewrite }: {
   projectId: string; initialPlan: ScenePlanType; initialVersion: number;
+  onRewrite: (planVersion: number) => void;
 }) {
   const router = useRouter();
   const [plan, setPlan] = useState(initialPlan);
+  const [previewPlan, setPreviewPlan] = useState(initialPlan); // follows edits after a pause in typing
   const [selected, setSelected] = useState(0);
   const [saveState, setSaveStateRaw] = useState<SaveState>("saved");
   const saveStateRef = useRef<SaveState>("saved");
@@ -43,7 +45,7 @@ export function Storyboard({ projectId, initialPlan, initialVersion }: {
   const conflicted = useRef(false);
 
   const save = useCallback(async (): Promise<void> => {
-    if (inFlight.current) await inFlight.current; // one save at a time, in order
+    while (inFlight.current) await inFlight.current; // one save at a time, in order
     if (!dirty.current) return;
     const toSave = latest.current;
     if (!ScenePlan.safeParse(toSave).success) {
@@ -96,6 +98,33 @@ export function Storyboard({ projectId, initialPlan, initialVersion }: {
     timer.current = setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
   };
 
+  useEffect(() => {
+    const t = setTimeout(() => setPreviewPlan(plan), 700);
+    return () => clearTimeout(t);
+  }, [plan]);
+
+  // Save everything first; returns false (with a message) if something can't be saved.
+  async function saveFirst(action: string): Promise<boolean> {
+    if (timer.current) clearTimeout(timer.current);
+    await save();
+    if (conflicted.current) return false;
+    if (dirty.current || saveStateRef.current !== "saved") {
+      setReply({
+        ok: false,
+        text: saveStateRef.current === "invalid"
+          ? `Your latest edits aren't saved yet: fill in the highlighted empty fields, then ${action} again.`
+          : `Your latest edits aren't saved yet. Wait for "Saved" (or check your connection), then ${action} again.`,
+      });
+      return false;
+    }
+    return true;
+  }
+
+  async function rewrite() {
+    if (!confirm("Write a completely new script? This replaces the current one, including your edits.")) return;
+    if (await saveFirst("write a new script")) onRewrite(version.current);
+  }
+
   // Warn before leaving with unsaved edits.
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => { if (dirty.current) e.preventDefault(); };
@@ -106,20 +135,8 @@ export function Storyboard({ projectId, initialPlan, initialVersion }: {
   async function revise(message: string) {
     const text = message.trim();
     if (text.length < 3 || revising) return;
-    if (timer.current) clearTimeout(timer.current);
-    await save(); // the change request must start from the latest saved version
-    if (conflicted.current) return;
-    // Never send a request while edits are unsaved: the AI works from the saved version,
-    // and its answer would replace the unsaved edits.
-    if (dirty.current || saveStateRef.current !== "saved") {
-      setReply({
-        ok: false,
-        text: saveStateRef.current === "invalid"
-          ? "Your latest edits aren't saved yet: fill in the highlighted empty fields, then send the change again."
-          : "Your latest edits aren't saved yet. Wait for \"Saved\" (or check your connection), then send the change again.",
-      });
-      return;
-    }
+    // The AI works from the saved version, so never send a request with unsaved edits.
+    if (!(await saveFirst("send the change"))) return;
     setRevising(true);
     setReply(null);
     try {
@@ -132,7 +149,7 @@ export function Storyboard({ projectId, initialPlan, initialVersion }: {
       if (res.status === 401) { router.push("/login"); return; }
       if (res.status === 409) { conflicted.current = true; setSaveState("conflict"); return; }
       if (!res.ok) {
-        setReply({ ok: false, text: body?.error?.message ?? "Couldn't make that change.", problems: body?.error?.details?.problems });
+        setReply({ ok: false, text: body?.error?.message ?? `The server had a problem (error ${res.status}). Please try again.`, problems: body?.error?.details?.problems });
         return;
       }
       const next = body.scenePlan as ScenePlanType;
@@ -140,6 +157,7 @@ export function Storyboard({ projectId, initialPlan, initialVersion }: {
       version.current = body.planVersion;
       dirty.current = false;
       setPlan(next);
+      setPreviewPlan(next);
       setSaveState("saved");
       const ids: string[] = body.changedSceneIds ?? [];
       setChanged(new Set(ids));
@@ -217,11 +235,16 @@ export function Storyboard({ projectId, initialPlan, initialVersion }: {
               </div>
             )}
           </section>
+
+          <button type="button" onClick={() => void rewrite()} disabled={revising}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-blue py-3 font-semibold text-blue disabled:opacity-50">
+            <RefreshCw className="size-4" aria-hidden /> Write a new script
+          </button>
         </div>
 
         <div className="order-1 lg:order-2">
           <div className="lg:sticky lg:top-24">
-            <PreviewPlayer plan={plan} selected={selected} />
+            <PreviewPlayer plan={previewPlan} selected={selected} />
           </div>
         </div>
       </div>

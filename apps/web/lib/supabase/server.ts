@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
-// A Supabase client for server code, acting as whoever is signed in (no one yet, until W3).
+// A Supabase client for server code, acting as the signed-in user (security rules apply).
 export async function createSupabaseServer() {
   const cookieStore = await cookies();
   return createServerClient(

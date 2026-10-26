@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Loader2, RefreshCw, Sparkles } from "lucide-react";
+import { AlertCircle, Loader2, Sparkles } from "lucide-react";
 import { ScenePlan, type ScenePlanType } from "@shared/schema";
 import { Storyboard } from "./storyboard/Storyboard";
 
@@ -19,16 +19,21 @@ export function ScriptPanel({ projectId, initialPlan, initialVersion, autoStart 
   const [error, setError] = useState<{ message: string; problems?: string[] } | null>(null);
   const started = useRef(false);
 
-  const write = useCallback(async () => {
+  // expectedVersion is sent when replacing a script, so a stale request is refused before any AI call.
+  const write = useCallback(async (expectedVersion?: number) => {
     setError(null);
     setWriting(true);
     setElapsed(0);
     try {
-      const res = await fetch(`/api/projects/${projectId}/script`, { method: "POST" });
+      const res = await fetch(`/api/projects/${projectId}/script`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(expectedVersion === undefined ? {} : { planVersion: expectedVersion }),
+      });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         if (res.status === 401) { router.push("/login"); return; }
-        setError({ message: body?.error?.message ?? "Something went wrong. Please try again.", problems: body?.error?.details?.problems });
+        setError({ message: body?.error?.message ?? `The server had a problem (error ${res.status}). Please try again.`, problems: body?.error?.details?.problems });
         return;
       }
       router.replace(`/projects/${projectId}`); // drop ?write=1
@@ -79,12 +84,8 @@ export function ScriptPanel({ projectId, initialPlan, initialVersion, autoStart 
       {plan ? (
         <>
           {/* key: a rewritten script starts a fresh storyboard */}
-          <Storyboard key={initialVersion} projectId={projectId} initialPlan={plan} initialVersion={initialVersion} />
-          <button type="button"
-            onClick={() => { if (confirm("Write a completely new script? This replaces the current one, including your edits.")) void write(); }}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-blue py-3 font-semibold text-blue">
-            <RefreshCw className="size-4" aria-hidden /> Write a new script
-          </button>
+          <Storyboard key={initialVersion} projectId={projectId} initialPlan={plan} initialVersion={initialVersion}
+            onRewrite={(v) => void write(v)} />
         </>
       ) : (
         <section className="rounded-3xl border border-line/60 bg-card p-8 text-center">

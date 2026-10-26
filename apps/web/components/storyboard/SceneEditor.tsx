@@ -3,7 +3,7 @@
 import { Play, Sparkles } from "lucide-react";
 import { countWords } from "@shared/rules";
 import type { SceneType } from "@shared/schema";
-import { TEMPLATE_LABEL } from "../ScriptView";
+import { TEMPLATE_LABEL } from "./labels";
 
 type Field = { label: string; path: (string | number)[]; max: number; optional?: boolean };
 

@@ -1,22 +1,27 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { generatePlan } from "@shared/generatePlan";
 import { createLLMChain } from "@shared/providers/llm";
 import type { DurationTargetType, LanguageType, ThemeChoiceType } from "@shared/schema";
-import { apiError } from "@/lib/api";
+import { apiError, finishLlmCall, reserveLlmCall } from "@/lib/api";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 // Writing a script takes 30-60 seconds (Gemini plus up to 2 repairs).
 export const maxDuration = 120;
 
-const LLM_CALLS_PER_HOUR = 20;
+// planVersion is sent when replacing an existing script, so a stale request is refused
+// before any AI call is made (and before it counts against the hourly allowance).
+const ScriptBody = z.object({ planVersion: z.number().int().min(0).optional() });
 
 // POST /api/projects/:id/script: write (or rewrite) the scene plan with Gemini.
-export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createSupabaseServer();
   const { data: auth } = await supabase.auth.getClaims();
-  const userId = auth?.claims?.sub;
-  if (!userId) return apiError(401, "unauthorized", "Please sign in again.");
+  if (!auth?.claims?.sub) return apiError(401, "unauthorized", "Please sign in again.");
+
+  const body = ScriptBody.safeParse(await request.json().catch(() => ({})));
+  if (!body.success) return apiError(422, "validation_failed", "The request was not valid.");
 
   const { data: project } = await supabase
     .from("projects")
@@ -25,16 +30,12 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     .maybeSingle();
   if (!project) return apiError(404, "not_found", "That project doesn't exist.");
   if (!project.input_text?.trim()) return apiError(422, "validation_failed", "This project has no topic or notes yet.");
-
-  // Hourly limit on AI calls, counted from llm_calls (protects the free Gemini quota).
-  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { count } = await supabase.from("llm_calls").select("id", { count: "exact", head: true }).gte("created_at", hourAgo);
-  if ((count ?? 0) >= LLM_CALLS_PER_HOUR) {
-    return NextResponse.json(
-      { error: { code: "rate_limited", message: `You've used all ${LLM_CALLS_PER_HOUR} AI requests for this hour. Please try again a little later.` } },
-      { status: 429, headers: { "Retry-After": "600" } },
-    );
+  if (body.data.planVersion !== undefined && body.data.planVersion !== project.plan_version) {
+    return apiError(409, "version_conflict", "This project changed in another tab. Reload to see the latest version.");
   }
+
+  const reservation = await reserveLlmCall(supabase, "script", id);
+  if ("response" in reservation) return reservation.response;
 
   const notesMode = project.input_mode === "notes";
   const started = Date.now();
@@ -51,15 +52,11 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     });
   } catch (e) {
     console.error("script generation crashed:", (e as Error).message);
+    await finishLlmCall(supabase, reservation.id, { ok: false, providersTried: [], attempts: 1 }, started);
     return apiError(500, "internal", "Something went wrong while writing the script. Please try again.");
   }
   const { plan, report } = result;
-
-  await supabase.from("llm_calls").insert({
-    user_id: userId, project_id: id, kind: "script", ok: report.ok,
-    provider: report.provider ?? report.providersTried.at(-1) ?? "none",
-    attempts: Math.max(1, report.attempts), seconds: Math.round((Date.now() - started) / 100) / 10,
-  });
+  await finishLlmCall(supabase, reservation.id, report, started);
 
   if (!plan) {
     if (report.attempts === 0 || report.lastErrors.length === 0) {

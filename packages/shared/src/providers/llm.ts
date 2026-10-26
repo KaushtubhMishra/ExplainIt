@@ -19,9 +19,11 @@ function isUnavailable(err: unknown): boolean {
   return /RESOURCE_EXHAUSTED|UNAVAILABLE|overloaded|fetch failed|ECONNREFUSED|ETIMEDOUT/i.test(text);
 }
 
+// MINIMAL is the project default: measured 29-39 s per script instead of about 4 minutes.
 function thinkingLevel(): ThinkingLevel {
-  const v = (process.env.GEMINI_THINKING ?? "LOW").toUpperCase();
-  return (ThinkingLevel as Record<string, ThinkingLevel>)[v] ?? ThinkingLevel.LOW;
+  const levels = ThinkingLevel as Record<string, ThinkingLevel>;
+  const v = (process.env.GEMINI_THINKING ?? "MINIMAL").toUpperCase();
+  return levels[v] ?? levels.MINIMAL ?? ThinkingLevel.LOW;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

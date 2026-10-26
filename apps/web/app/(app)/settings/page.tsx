@@ -49,7 +49,7 @@ export default async function SettingsPage() {
           Renderer status and today&apos;s usage arrive in features W11 and W12.
         </p>
       </section>
-      <p className="text-center text-xs text-ink-soft">ExplainIt V1 · sign-in (W3)</p>
+      <p className="text-center text-xs text-ink-soft">ExplainIt V1 · in development</p>
     </div>
   );
 }

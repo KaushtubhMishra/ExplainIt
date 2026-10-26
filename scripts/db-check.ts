@@ -16,6 +16,8 @@ const serviceKey = need("SUPABASE_SERVICE_ROLE_KEY");
 const opts = { auth: { persistSession: false, autoRefreshToken: false } };
 
 const results: { check: string; result: string }[] = [];
+// save_plan checks the shape: 5-10 scenes, and the project's own language and length.
+const CHECK_PLAN = { version: 1, language: "hi-IN", durationTarget: 90, scenes: [1, 2, 3, 4, 5] };
 const pass = (check: string, ok: boolean, detail = "") =>
   results.push({ check, result: `${ok ? "PASS" : "FAIL"}${detail ? ` (${detail})` : ""}` });
 
@@ -49,10 +51,12 @@ async function main() {
     pass("Signed-out visitor sees no projects", !anonRead.error && (anonRead.data ?? []).length === 0);
 
     // 4. Saving a plan checks the version.
-    const save1 = await user.rpc("save_plan", { p_project: projectId, p_plan: { version: 1, scenes: [] }, p_expected: 0 });
+    const save1 = await user.rpc("save_plan", { p_project: projectId, p_plan: CHECK_PLAN, p_expected: 0 });
     pass("Plan saves with the right version", save1.data === 1, save1.error?.message);
-    const save2 = await user.rpc("save_plan", { p_project: projectId, p_plan: { version: 1, scenes: [] }, p_expected: 0 });
+    const save2 = await user.rpc("save_plan", { p_project: projectId, p_plan: CHECK_PLAN, p_expected: 0 });
     pass("Stale save is rejected", !!save2.error && save2.error.message.includes("version_conflict"));
+    const sneakyWrite = await user.from("projects").update({ stage: "ready", plan_version: 99 }).eq("id", projectId);
+    pass("User cannot write stage or version directly", !!sneakyWrite.error);
 
     // 5. Renders are queued through queue_render(), which copies the plan from the project.
     const job1q = await user.rpc("queue_render", { p_project: projectId, p_expected: 1 });

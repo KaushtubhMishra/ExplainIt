@@ -12,17 +12,21 @@ function need(name: string): string {
 
 // Ask for the password without showing it on screen.
 function askHidden(question: string): Promise<string> {
+  if (!process.stdin.isTTY || !process.stdin.setRawMode) {
+    // Without a real terminal the typing can't be hidden, so refuse rather than show it.
+    throw new Error("Run this in a PowerShell or Terminal window (not through another program), so the password stays hidden.");
+  }
   return new Promise((resolve) => {
     process.stdout.write(question);
     const stdin = process.stdin;
-    stdin.setRawMode?.(true);
+    stdin.setRawMode(true);
     stdin.resume();
     stdin.setEncoding("utf8");
     let value = "";
     const onData = (ch: string) => {
       for (const c of ch) {
         if (c === "\r" || c === "\n") {
-          stdin.setRawMode?.(false); stdin.pause(); stdin.off("data", onData);
+          stdin.setRawMode(false); stdin.pause(); stdin.off("data", onData);
           process.stdout.write("\n"); resolve(value); return;
         }
         if (c === "\u0003") { process.stdout.write("\n"); process.exit(1); } // Ctrl+C

@@ -14,11 +14,14 @@ export function PreviewPlayer({ plan, selected }: { plan: ScenePlanType; selecte
   const inFrame = scene.startFrame;
   const outFrame = scene.startFrame + scene.durationFrames - 1;
 
-  // Jump to the newly selected scene and play it.
+  // Jump to a newly selected scene and play it. (Only on selection: edits that move the
+  // scene's start frame shouldn't restart playback.)
+  const inFrameRef = useRef(inFrame);
+  inFrameRef.current = inFrame;
   useEffect(() => {
-    ref.current?.seekTo(inFrame);
+    ref.current?.seekTo(inFrameRef.current);
     ref.current?.play();
-  }, [inFrame, selected]);
+  }, [selected]);
 
   return (
     <div className="mx-auto w-full max-w-[220px] lg:max-w-[300px]">
