@@ -64,7 +64,7 @@ export function CreateForm() {
         setBusy(false);
         return;
       }
-      router.push(`/projects/${body.project.id}`);
+      router.push(`/projects/${body.project.id}?write=1`); // start writing the script right away
     } catch {
       setError("Couldn't reach the server. Check that it's running and try again.");
       setBusy(false);

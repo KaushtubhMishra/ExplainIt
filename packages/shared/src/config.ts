@@ -1,8 +1,22 @@
 import dotenv from "dotenv";
-import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import path from "node:path";
 
-// Load the .env file at the project root (three folders up from this file).
-dotenv.config({ path: fileURLToPath(new URL("../../../.env", import.meta.url)) });
+// Load the project's .env, searching upward from the current folder at run time.
+// (A static file reference here would make the website's bundler pack .env into the app.)
+function findEnvFile(): string | undefined {
+  let dir = process.cwd();
+  for (let i = 0; i < 5; i++) {
+    const candidate = path.join(dir, ".env");
+    if (existsSync(candidate)) return candidate;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return undefined;
+}
+const envFile = findEnvFile();
+if (envFile) dotenv.config({ path: envFile, quiet: true } as dotenv.DotenvConfigOptions);
 
 function read(name: string, fallback?: string): string {
   const value = process.env[name]?.trim();

@@ -42,9 +42,20 @@ export function totalWords(plan: ScenePlanType): number {
 }
 
 // Errors make the plan fail (and trigger a repair retry). Warnings are only reported.
-export function checkPlanRules(plan: ScenePlanType): { errors: string[]; warnings: string[] } {
+// Does the user's topic actually ask about differences? (English and Hindi wording.)
+const CONTRAST_WORDS = /\b(vs\.?|versus|differ\w*|compar\w*|contrast\w*|better than)\b|बनाम|अंतर|फ़?फर्क|तुलना/i;
+export const topicAsksForComparison = (topicText: string) => CONTRAST_WORDS.test(topicText);
+
+export function checkPlanRules(plan: ScenePlanType, opts: { topicText?: string } = {}): { errors: string[]; warnings: string[] } {
   const errors: string[] = [];
   const warnings: string[] = [];
+
+  // Comparison only when the topic is about differences, and never more than once.
+  const comparisons = plan.scenes.filter((s) => s.content.template === "Comparison").length;
+  if (comparisons > 1) errors.push(`The plan uses Comparison ${comparisons} times; use it at most once.`);
+  if (comparisons > 0 && opts.topicText !== undefined && !topicAsksForComparison(opts.topicText)) {
+    errors.push("This topic is not about how two things differ, so do not use the Comparison template. Use other templates instead.");
+  }
   const first = plan.scenes[0];
   const last = plan.scenes[plan.scenes.length - 1];
 

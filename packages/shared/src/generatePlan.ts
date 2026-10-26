@@ -44,7 +44,7 @@ function getAt(obj: unknown, path: (string | number)[]): unknown {
   return path.reduce<unknown>((cur, key) => (cur as Record<string | number, unknown>)?.[key], obj);
 }
 
-function validate(text: string, durationTarget: DurationTargetType, themeChoice: ThemeChoiceType): { plan?: ScenePlanType; errors: string[]; warnings: string[] } {
+function validate(text: string, durationTarget: DurationTargetType, themeChoice: ThemeChoiceType, topicText: string): { plan?: ScenePlanType; errors: string[]; warnings: string[] } {
   let raw: unknown;
   try {
     raw = extractJson(text);
@@ -78,7 +78,7 @@ function validate(text: string, durationTarget: DurationTargetType, themeChoice:
     const errors = parsed.error.issues.slice(0, 12).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`);
     return { errors, warnings: fixes };
   }
-  const { errors, warnings } = checkPlanRules(parsed.data);
+  const { errors, warnings } = checkPlanRules(parsed.data, { topicText });
   return errors.length
     ? { errors, warnings: [...fixes, ...warnings] }
     : { plan: parsed.data, errors: [], warnings: [...fixes, ...warnings] };
@@ -124,7 +124,7 @@ export async function generatePlan(args: {
           clearInterval(heartbeat);
         }
         log(`  answer received in ${Math.round((Date.now() - callStart) / 1000)}s`);
-        const result = validate(text, durationTarget, themeChoice);
+        const result = validate(text, durationTarget, themeChoice, `${args.topic}\n${args.notes ?? ""}`);
         if (result.plan) {
           Object.assign(report, {
             ok: true, provider: provider.name, warnings: result.warnings, lastErrors: [],

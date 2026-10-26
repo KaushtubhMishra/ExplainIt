@@ -88,6 +88,17 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
   `proxy.ts` sends signed-out visitors to /login (Next.js 16 renamed middleware to proxy).
   API routes (`/api/*`) are not redirected; they return a JSON 401 themselves.
 
+## Gotchas learned so far
+
+- Never reference `.env` with `new URL("...", import.meta.url)` in shared code: the website's
+  bundler (Turbopack) would try to pack the file into the app. `packages/shared/src/config.ts`
+  searches for `.env` at run time instead.
+- The website imports shared code through the `@shared/*` path. Only import files that are safe
+  on a server without Python or ffmpeg (schema, rules, prompts, LLM adapter); never import
+  `providers/voice.ts` or the Remotion code into `apps/web`.
+- Supabase's built-in email service sends only a few emails per hour; use password sign-in
+  while developing.
+
 ## Coding style
 
 - TypeScript everywhere, strict mode. Zod for anything that crosses a boundary.
