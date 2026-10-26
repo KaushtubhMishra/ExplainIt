@@ -7,6 +7,9 @@ export function apiError(status: number, code: string, message: string, details?
 
 // The hourly AI allowance, counted in real Gemini calls (repairs and fallbacks included).
 export const GEMINI_CALLS_PER_HOUR = 40;
+// A single script or revision can use up to 2 models x (1 attempt + 2 repairs) = 6 Gemini
+// calls. Mirrors the "worst_case" constant in reserve_llm_call() (20261026000100).
+export const WORST_CASE_CALLS_PER_REQUEST = 6;
 
 type Rpc = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { message: string } | null }> };
 
@@ -39,5 +42,24 @@ export async function finishLlmCall(
     p_id: id, p_ok: report.ok, p_provider: report.provider ?? report.providersTried.at(-1) ?? "none",
     p_attempts: Math.max(1, report.attempts), p_seconds: Math.round((Date.now() - startedAt) / 100) / 10,
   });
-  if (error) console.error("finish_llm_call failed:", error.message);
+  // not_pending means the row was already finished (it should never be called twice in normal
+  // use); log it rather than surfacing it, since the AI call itself already succeeded or failed.
+  if (error && !error.message.includes("not_pending")) console.error("finish_llm_call failed:", error.message);
+  else if (error) console.error("finish_llm_call: row already finished (ignored):", id);
+}
+
+// Maps a save_plan() database error to the right HTTP response. Used by every route that
+// calls save_plan (create/write script, save edits, revise), so the mapping is identical.
+export function savePlanError(message: string, staleVersion?: number): NextResponse {
+  if (message.includes("version_conflict")) {
+    return apiError(409, "version_conflict", "This project changed in another tab. Reload to see the latest version.", {
+      ...(staleVersion !== undefined ? { planVersion: staleVersion } : {}),
+    });
+  }
+  if (message.includes("invalid_plan")) {
+    return apiError(422, "validation_failed", "Some text is too long or missing. Please check the highlighted fields.");
+  }
+  if (message.includes("not_found")) return apiError(404, "not_found", "That project doesn't exist.");
+  console.error("save_plan failed:", message);
+  return apiError(500, "internal", "Couldn't save your changes. Please try again.");
 }

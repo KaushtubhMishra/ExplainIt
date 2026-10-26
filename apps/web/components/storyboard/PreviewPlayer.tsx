@@ -6,22 +6,23 @@ import { ExplainerVideo } from "../../../../packages/video/src/ExplainerVideo";
 import type { ScenePlanType } from "@shared/schema";
 import { estimatedTimeline } from "@/lib/preview-timeline";
 
-// The selected scene, played with the same templates the final video uses (no sound yet).
-export function PreviewPlayer({ plan, selected }: { plan: ScenePlanType; selected: number }) {
+// replayKey: bump it to replay the selected scene from the start even when the selected
+// index hasn't changed (for example after a change request edits the scene in place).
+export function PreviewPlayer({ plan, selected, replayKey = 0 }: { plan: ScenePlanType; selected: number; replayKey?: number }) {
   const ref = useRef<PlayerRef>(null);
   const timeline = useMemo(() => estimatedTimeline(plan), [plan]);
   const scene = timeline.scenes[Math.min(selected, timeline.scenes.length - 1)];
   const inFrame = scene.startFrame;
   const outFrame = scene.startFrame + scene.durationFrames - 1;
 
-  // Jump to a newly selected scene and play it. (Only on selection: edits that move the
-  // scene's start frame shouldn't restart playback.)
+  // Jump to the scene and play it, on selection or on an explicit replay request. (Not on
+  // every plan change: edits that move the scene's start frame shouldn't restart playback.)
   const inFrameRef = useRef(inFrame);
   inFrameRef.current = inFrame;
   useEffect(() => {
     ref.current?.seekTo(inFrameRef.current);
     ref.current?.play();
-  }, [selected]);
+  }, [selected, replayKey]);
 
   return (
     <div className="mx-auto w-full max-w-[220px] lg:max-w-[300px]">

@@ -34,12 +34,16 @@ export function ScriptPanel({ projectId, initialPlan, initialVersion, autoStart 
       if (!res.ok) {
         if (res.status === 401) { router.push("/login"); return; }
         setError({ message: body?.error?.message ?? `The server had a problem (error ${res.status}). Please try again.`, problems: body?.error?.details?.problems });
+        // The storyboard shown so far may be stale (for example, edits made before a failed
+        // "Write a new script"); reload from the server so it reflects what's actually saved.
+        router.refresh();
         return;
       }
       router.replace(`/projects/${projectId}`); // drop ?write=1
       router.refresh(); // reload the page with the saved script
     } catch {
       setError({ message: "Couldn't reach the server. Check that it's running and try again." });
+      router.refresh();
     } finally {
       setWriting(false);
     }

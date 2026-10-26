@@ -27,6 +27,7 @@ export function Storyboard({ projectId, initialPlan, initialVersion, onRewrite }
   const [plan, setPlan] = useState(initialPlan);
   const [previewPlan, setPreviewPlan] = useState(initialPlan); // follows edits after a pause in typing
   const [selected, setSelected] = useState(0);
+  const [replayKey, setReplayKey] = useState(0); // bumped after a change, so the preview replays even if the scene was already selected
   const [saveState, setSaveStateRaw] = useState<SaveState>("saved");
   const saveStateRef = useRef<SaveState>("saved");
   const setSaveState = (state: SaveState) => { saveStateRef.current = state; setSaveStateRaw(state); };
@@ -163,6 +164,7 @@ export function Storyboard({ projectId, initialPlan, initialVersion, onRewrite }
       setChanged(new Set(ids));
       const first = next.scenes.findIndex((s) => ids.includes(s.id));
       if (first >= 0) setSelected(first);
+      setReplayKey((k) => k + 1); // replay the (possibly already-selected) scene from the start
       setReply({ ok: true, text: body.reply });
       setRequest("");
     } catch {
@@ -244,7 +246,7 @@ export function Storyboard({ projectId, initialPlan, initialVersion, onRewrite }
 
         <div className="order-1 lg:order-2">
           <div className="lg:sticky lg:top-24">
-            <PreviewPlayer plan={previewPlan} selected={selected} />
+            <PreviewPlayer plan={previewPlan} selected={selected} replayKey={replayKey} />
           </div>
         </div>
       </div>

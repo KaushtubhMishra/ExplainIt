@@ -41,7 +41,7 @@ For each case, record PASS, FAIL, or BLOCKED, plus a screenshot for any FAIL.
 
 | ID | Steps | Expected |
 |---|---|---|
-| W1-1 | Run `npm run db:check` | Ends with "All 20 checks passed. The database is ready." |
+| W1-1 | Run `npm run db:check` | Ends with "All 25 checks passed. The database is ready." |
 
 ### W2: Web app frame
 
@@ -129,7 +129,8 @@ Uses AI requests. Run W8-1 and W8-3 only (2 requests).
 | W8-4 | Type two letters in the request box | The send button stays disabled |
 | W8-5 | Click a suggestion chip | It fills the request box (do not send) |
 | W8-6 | "Write a new script" button, then Cancel in the confirm dialog | Nothing changes |
-| W8-7 | Send "Make it sunset" (uses 1 AI request; optional) | Reply says "Switched the colour theme to sunset"; the preview turns pink-orange; the project chip shows Sunset after a reload |
+| W8-7 | Send "Use the sunset theme" (uses 1 AI request; optional) | Reply says "Switched the colour theme to sunset"; the preview turns pink-orange; the project chip shows Sunset after a reload |
+| W8-8 | Send "Make it simpler and explain why the sky is blue" (uses 1 AI request; optional) | The scenes may change, but the colour theme must NOT change: only requests naming "theme" or "colour"/"color" switch it |
 
 ### General checks (all pages)
 

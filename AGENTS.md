@@ -47,7 +47,7 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
 | `npm run voice [-- <run folder>]` | Voice the latest (or named) plan |
 | `npm run render [-- <run folder>]` | Render the MP4 |
 | `npm run make-video -- "topic" [same flags]` | Plan, voice, and render in one go |
-| `npm run db:check` | 20-point end-to-end database check (including cross-user access) with a temporary user |
+| `npm run db:check` | 25-point end-to-end database check (including cross-user access) with a temporary user |
 | `npm run user:password -- you@example.com` | Create an account or set/reset its password (master key, no email sent) |
 | `npx supabase db push` | Apply new migrations to the linked Supabase project |
 
@@ -65,27 +65,32 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
    `YYYYMMDDHHMMSS_description.sql`. Never edit an applied migration. Row-level security
    stays on for every table, and every insert policy on a row that points at a project must
    also check that the project belongs to `auth.uid()`.
-8. **Render jobs are created only by the `queue_render(project, expected_version)` database
+5. **Render jobs are created only by the `queue_render(project, expected_version)` database
    function**, which checks ownership and the version and copies the plan from the project.
    There is no insert policy on `jobs`. The worker must still re-validate every job's plan with
    `ScenePlan` and `checkPlanRules` before rendering, and fail the job if it doesn't pass.
-9. **Users can't write plans directly.** Signed-in users may insert projects and update only
-   `title` and `theme` (column privileges). Plans change only through `save_plan()`, which checks
-   ownership, the version, 5-10 scenes, and the project's language and length.
-10. **The AI allowance is reserved before calling Gemini**, with `reserve_llm_call()` (per-user
-   lock, counts real Gemini calls, 40 per hour), then recorded with `finish_llm_call()`. Use the
-   helpers in `apps/web/lib/api.ts`; never call Gemini from a route without a reservation.
-11. **Model output never decides the project's language, length, or theme.** `validate()` in
+6. **Users can't write plans directly.** Signed-in users may insert projects and update only
+   `title` and `theme` (column privileges). Plans change only through `save_plan(project, plan,
+   expected, title?, theme?)`, which checks ownership, the version, 5-10 scenes, and the
+   project's language and length, and sets the title and/or theme in the same write when given.
+7. **The AI allowance is reserved before calling Gemini**, with `reserve_llm_call()` (per-user
+   lock; in-progress calls count as the worst case of 6 Gemini calls; 40 per hour), then recorded
+   once with `finish_llm_call()`, which can only finish a row that is still pending (`ok is
+   null`) — a second call on the same row is refused, not silently accepted. Use the helpers in
+   `apps/web/lib/api.ts`; never call Gemini from a route without a reservation.
+8. **Model output never decides the project's language, length, or theme.** `validate()` in
    `generatePlan.ts` overwrites them from the project; keep it that way. The one exception is a
-   change request that explicitly asks for a theme ("make it sunset"): `requestedTheme()` detects
-   it and the revise route applies it to the plan and the project.
-5. **Do not commit or push.** The owner reviews each feature and pushes to GitHub himself.
+   change request that explicitly names the theme ("use the sunset theme", "change the colour to
+   night"): `requestedTheme()` only fires on an explicit theme word ("theme", "colour"/"color",
+   थीम, रंग) plus a theme name — a theme name on its own, or phrasing like "make it" or "change
+   to", is never enough — and the revise route applies it to the plan and the project.
+9. **Do not commit or push.** The owner reviews each feature and pushes to GitHub himself.
    Leave changes uncommitted unless he asks. Each feature arrives as a zip containing the whole
    repository, which replaces the local copy: tell the owner about any local change (a branch,
    a fix, a config edit) so it can be added to the next zip instead of being lost.
-6. **One feature at a time.** Build only the feature asked for; do not refactor unrelated
+10. **One feature at a time.** Build only the feature asked for; do not refactor unrelated
    code. Report what changed and how to test it.
-7. **Windows.** The owner works on Windows (PowerShell). Windows paths in commands and docs
+11. **Windows.** The owner works on Windows (PowerShell). Windows paths in commands and docs
    use backslashes; code uses `path.join`.
 
 ## Key decisions (do not change without asking)

@@ -57,12 +57,30 @@ async function main() {
     pass("Stale save is rejected", !!save2.error && save2.error.message.includes("version_conflict"));
     const sneakyWrite = await user.from("projects").update({ stage: "ready", plan_version: 99 }).eq("id", projectId);
     pass("User cannot write stage or version directly", !!sneakyWrite.error);
+    const save3 = await user.rpc("save_plan", {
+      p_project: projectId, p_plan: { ...CHECK_PLAN, scenes: [1, 2, 3] }, p_expected: save1.data,
+    });
+    pass("A 3-scene plan is rejected", !!save3.error && save3.error.message.includes("invalid_plan"), save3.error?.message);
+    const save4 = await user.rpc("save_plan", {
+      p_project: projectId, p_plan: CHECK_PLAN, p_expected: save1.data, p_theme: "sunset",
+    });
+    const themeAfter = await user.from("projects").select("theme").eq("id", projectId).single();
+    pass("save_plan with p_theme changes the theme in the same call", !save4.error && themeAfter.data?.theme === "sunset", save4.error?.message);
+    const planVersion: number = save4.data ?? save1.data; // save_plan's real version, for the render check below
+
+    // 4b. The AI allowance: a call can be finished only once.
+    const reserved = await user.rpc("reserve_llm_call", { p_kind: "script", p_project: projectId, p_limit: 40 });
+    pass("An AI call can be reserved", !reserved.error && typeof reserved.data === "number", reserved.error?.message);
+    const finish1 = await user.rpc("finish_llm_call", { p_id: reserved.data, p_ok: true, p_provider: "gemini", p_attempts: 3, p_seconds: 12.5 });
+    pass("Finishing a reserved call works", !finish1.error, finish1.error?.message);
+    const finish2 = await user.rpc("finish_llm_call", { p_id: reserved.data, p_ok: true, p_provider: "x", p_attempts: 1, p_seconds: 0 });
+    pass("A second finish on the same call is refused", !!finish2.error && finish2.error.message.includes("not_pending"), finish2.error?.message);
 
     // 5. Renders are queued through queue_render(), which copies the plan from the project.
-    const job1q = await user.rpc("queue_render", { p_project: projectId, p_expected: 1 });
+    const job1q = await user.rpc("queue_render", { p_project: projectId, p_expected: planVersion });
     const job1 = { data: job1q.data as { id: string } | null };
     pass("User can queue a render", !job1q.error && !!job1q.data, job1q.error?.message);
-    const job2 = await user.rpc("queue_render", { p_project: projectId, p_expected: 1 });
+    const job2 = await user.rpc("queue_render", { p_project: projectId, p_expected: planVersion });
     pass("Second active render is refused", !!job2.error && job2.error.message.includes("job_active"));
     const direct = await user.from("jobs").insert({ project_id: projectId, user_id: userId, plan_version: 1, scene_plan: {} });
     pass("Jobs cannot be inserted directly", !!direct.error);

@@ -4,7 +4,7 @@ import { revisePlan } from "@shared/generatePlan";
 import { createLLMChain } from "@shared/providers/llm";
 import { requestedTheme } from "@shared/rules";
 import { ScenePlan } from "@shared/schema";
-import { apiError, finishLlmCall, reserveLlmCall } from "@/lib/api";
+import { apiError, finishLlmCall, reserveLlmCall, savePlanError } from "@/lib/api";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 export const maxDuration = 120;
@@ -69,12 +69,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const reply = [themeChanged ? `Switched the colour theme to ${newTheme}.` : "", sceneText].filter(Boolean).join(" ")
     || "No scenes needed changing for that request.";
 
-  const { data: newVersion, error } = await supabase.rpc("save_plan", { p_project: id, p_plan: plan, p_expected: project.plan_version });
-  if (error) {
-    if (error.message.includes("version_conflict")) return apiError(409, "version_conflict", "This project changed in another tab. Reload to see the latest version.");
-    return apiError(500, "internal", "The change was made but couldn't be saved. Please try again.");
-  }
-  if (themeChanged) await supabase.from("projects").update({ theme: newTheme }).eq("id", id);
+  // The plan and (if requested) the project's theme are saved in one write, so they can
+  // never disagree.
+  const { data: newVersion, error } = await supabase.rpc("save_plan", {
+    p_project: id, p_plan: plan, p_expected: project.plan_version, ...(themeChanged ? { p_theme: newTheme } : {}),
+  });
+  if (error) return savePlanError(error.message);
   await supabase.from("messages").insert([
     { project_id: id, user_id: userId, stage: "storyboard", role: "user", content: body.data.message },
     { project_id: id, user_id: userId, stage: "storyboard", role: "assistant", content: reply },

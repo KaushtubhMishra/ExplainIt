@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { ScenePlan } from "@shared/schema";
-import { apiError } from "@/lib/api";
+import { apiError, savePlanError } from "@/lib/api";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 const SaveBody = z.object({
@@ -34,14 +34,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { data: newVersion, error } = await supabase.rpc("save_plan", {
     p_project: id, p_plan: toSave, p_expected: body.data.planVersion,
   });
-  if (error) {
-    if (error.message.includes("version_conflict")) {
-      return apiError(409, "version_conflict", "This project changed in another tab. Reload to see the latest version.", {
-        planVersion: project.plan_version,
-      });
-    }
-    console.error("save_plan failed:", error.message);
-    return apiError(500, "internal", "Couldn't save your changes. Please try again.");
-  }
+  if (error) return savePlanError(error.message, project.plan_version);
   return NextResponse.json({ planVersion: newVersion });
 }

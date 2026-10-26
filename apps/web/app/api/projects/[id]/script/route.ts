@@ -3,7 +3,7 @@ import { z } from "zod";
 import { generatePlan } from "@shared/generatePlan";
 import { createLLMChain } from "@shared/providers/llm";
 import type { DurationTargetType, LanguageType, ThemeChoiceType } from "@shared/schema";
-import { apiError, finishLlmCall, reserveLlmCall } from "@/lib/api";
+import { apiError, finishLlmCall, reserveLlmCall, savePlanError } from "@/lib/api";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 // Writing a script takes 30-60 seconds (Gemini plus up to 2 repairs).
@@ -67,18 +67,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     });
   }
 
-  // Save with the version check, so a second tab can't be overwritten silently.
+  // Save with the version check, so a second tab can't be overwritten silently. The title
+  // is set in the same write, so the plan and the project can never disagree.
   const { data: newVersion, error: saveError } = await supabase.rpc("save_plan", {
-    p_project: id, p_plan: plan, p_expected: project.plan_version,
+    p_project: id, p_plan: plan, p_expected: project.plan_version, p_title: plan.title,
   });
-  if (saveError) {
-    if (saveError.message.includes("version_conflict")) {
-      return apiError(409, "version_conflict", "This project changed in another tab. Reload to see the latest version.");
-    }
-    console.error("save_plan failed:", saveError.message);
-    return apiError(500, "internal", "The script was written but couldn't be saved. Please try again.");
-  }
-  await supabase.from("projects").update({ title: plan.title }).eq("id", id);
+  if (saveError) return savePlanError(saveError.message);
 
   return NextResponse.json({
     scenePlan: plan,

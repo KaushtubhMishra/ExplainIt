@@ -42,15 +42,19 @@ export function totalWords(plan: ScenePlanType): number {
 }
 
 // Errors make the plan fail (and trigger a repair retry). Warnings are only reported.
-// Does a change request ask for a different colour theme? ("make it sunset", "use the night theme")
+// Does a change request ask for a different colour theme? Only an EXPLICIT theme word
+// ("theme", "colour"/"color", "colour scheme", थीम, रंग) counts as asking to change the
+// look; a theme name on its own ("the sky is blue", "a forest fire") never does, since
+// those are ordinary words. Phrases like "make it", "switch to", or "change to" are not
+// enough by themselves either.
+const THEME_WORD = /\b(theme|colou?r|colou?rs|colou?r scheme)\b|थीम|रंग/;
 const THEME_NAMES: Record<string, "sky" | "forest" | "sunset" | "night"> = {
   sky: "sky", forest: "forest", sunset: "sunset", night: "night",
   "आकाश": "sky", "जंगल": "forest", "सूर्यास्त": "sunset", "रात": "night",
 };
 export function requestedTheme(request: string): "sky" | "forest" | "sunset" | "night" | null {
   const text = request.toLowerCase();
-  const aboutLook = /\b(theme|colou?rs?|background|look|make it|switch to|change to)\b|थीम|रंग/.test(text);
-  if (!aboutLook) return null;
+  if (!THEME_WORD.test(text)) return null;
   for (const [word, theme] of Object.entries(THEME_NAMES)) {
     if (new RegExp(`(^|[^\\p{L}\\p{M}])${word}($|[^\\p{L}\\p{M}])`, "u").test(text)) return theme;
   }

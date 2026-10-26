@@ -14,7 +14,8 @@
     "db:check": "tsx scripts/db-check.ts",
     "dev": "npm run dev -w apps/web",
     "web:build": "npm run build -w apps/web",
-    "user:password": "tsx scripts/set-password.ts"
+    "user:password": "tsx scripts/set-password.ts",
+    "check:theme": "tsx scripts/check-theme-detection.ts"
   },
   "dependencies": {
     "@google/genai": "^1.20.0",
