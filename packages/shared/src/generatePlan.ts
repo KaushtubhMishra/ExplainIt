@@ -207,8 +207,11 @@ You are now REVISING an existing plan, not writing a new one.
   // rest of the plan untouched: any scene not named is forced back to its exact original
   // content after the model answers, so an edit can never be lost and only the named
   // scene(s) can change. A request with no scene number ("shorten the intro") is free to
-  // touch the whole plan, as before.
-  const targetScenes = targetedSceneNumbers(args.request);
+  // touch the whole plan, as before — UNLESS it is only naming a different theme ("use the
+  // sunset theme"), which is about the look, not the words: that locks every scene's
+  // content (an empty target set), so the model can't also rewrite text while it's there.
+  const namedScenes = targetedSceneNumbers(args.request);
+  const targetScenes = namedScenes ?? (args.themeOverride !== undefined ? [] : null);
   const result = await runPlanLoop({
     system: system + reviseRules, user, chain: args.chain, maxRepairs: args.maxRepairs ?? 2,
     log: args.log ?? (() => {}), promptName: "revise.v1",
@@ -218,13 +221,10 @@ You are now REVISING an existing plan, not writing a new one.
       const merged = mergeTargetedScenes(args.plan, base.plan, targetScenes);
       const mergedCheck = checkPlanRules(merged, { topicText: args.topicText });
       if (mergedCheck.errors.length) {
-        return {
-          errors: [
-            ...mergedCheck.errors,
-            `Only change scene${targetScenes.length > 1 ? "s" : ""} ${targetScenes.join(", ")}. Every other scene must be returned exactly as given, with no wording changed.`,
-          ],
-          warnings: base.warnings,
-        };
+        const scope = targetScenes.length === 0
+          ? "This request is only about the colour theme. Return every scene's narration and on-screen text exactly as given — change nothing but the theme."
+          : `Only change scene${targetScenes.length > 1 ? "s" : ""} ${targetScenes.join(", ")}. Every other scene must be returned exactly as given, with no wording changed.`;
+        return { errors: [...mergedCheck.errors, scope], warnings: base.warnings };
       }
       return { plan: merged, errors: [], warnings: [...base.warnings, ...mergedCheck.warnings] };
     },

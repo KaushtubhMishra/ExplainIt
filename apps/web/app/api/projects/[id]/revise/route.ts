@@ -63,9 +63,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const sceneNumbers = changedSceneIds.map((sid) => plan.scenes.findIndex((s) => s.id === sid) + 1).filter((n) => n > 0);
   const themeChanged = newTheme !== null && newTheme !== current.data.theme;
+  const allChanged = sceneNumbers.length > 0 && sceneNumbers.length === plan.scenes.length;
   const sceneText = sceneNumbers.length === 0
     ? ""
-    : `Updated scene${sceneNumbers.length > 1 ? "s" : ""} ${sceneNumbers.join(", ")}. The other scenes stayed the same.`;
+    : allChanged
+      ? `Updated all ${plan.scenes.length} scenes.`
+      : `Updated scene${sceneNumbers.length > 1 ? "s" : ""} ${sceneNumbers.join(", ")}. The other scenes stayed the same.`;
   const reply = [themeChanged ? `Switched the colour theme to ${newTheme}.` : "", sceneText].filter(Boolean).join(" ")
     || "No scenes needed changing for that request.";
 
