@@ -19,7 +19,10 @@ packages/video/public/music/
 supabase/.temp/
 supabase/.branches/
 
-# Editor and OS files
+# Editor and OS files (editor history folders can hold copies of .env)
 .vscode/
+.history/
+.idea/
+.vs/
 .DS_Store
 Thumbs.db

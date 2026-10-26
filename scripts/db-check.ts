@@ -23,8 +23,10 @@ async function main() {
   const admin = createClient(url, serviceKey, opts);   // the worker's view: bypasses security rules
   const anon = createClient(url, anonKey, opts);       // a visitor who is not signed in
   const email = `explainit-check-${Date.now()}@example.com`;
+  const otherEmail = `explainit-check-other-${Date.now()}@example.com`;
   const password = `Check-${Math.random().toString(36).slice(2)}-A1!`;
   let userId = "";
+  let otherId = "";
 
   try {
     // 1. A temporary user, signed in the normal way.
@@ -47,16 +49,31 @@ async function main() {
     pass("Signed-out visitor sees no projects", !anonRead.error && (anonRead.data ?? []).length === 0);
 
     // 4. Saving a plan checks the version.
-    const save1 = await user.rpc("save_plan", { p_project: projectId, p_plan: { version: 1 }, p_expected: 0 });
+    const save1 = await user.rpc("save_plan", { p_project: projectId, p_plan: { version: 1, scenes: [] }, p_expected: 0 });
     pass("Plan saves with the right version", save1.data === 1, save1.error?.message);
-    const save2 = await user.rpc("save_plan", { p_project: projectId, p_plan: { version: 1 }, p_expected: 0 });
+    const save2 = await user.rpc("save_plan", { p_project: projectId, p_plan: { version: 1, scenes: [] }, p_expected: 0 });
     pass("Stale save is rejected", !!save2.error && save2.error.message.includes("version_conflict"));
 
-    // 5. One active render per project.
-    const job1 = await user.from("jobs").insert({ project_id: projectId, user_id: userId, plan_version: 1, scene_plan: {} }).select().single();
-    pass("User can queue a render", !job1.error, job1.error?.message);
-    const job2 = await user.from("jobs").insert({ project_id: projectId, user_id: userId, plan_version: 1, scene_plan: {} });
-    pass("Second active render is refused", !!job2.error);
+    // 5. Renders are queued through queue_render(), which copies the plan from the project.
+    const job1q = await user.rpc("queue_render", { p_project: projectId, p_expected: 1 });
+    const job1 = { data: job1q.data as { id: string } | null };
+    pass("User can queue a render", !job1q.error && !!job1q.data, job1q.error?.message);
+    const job2 = await user.rpc("queue_render", { p_project: projectId, p_expected: 1 });
+    pass("Second active render is refused", !!job2.error && job2.error.message.includes("job_active"));
+    const direct = await user.from("jobs").insert({ project_id: projectId, user_id: userId, plan_version: 1, scene_plan: {} });
+    pass("Jobs cannot be inserted directly", !!direct.error);
+
+    // 5b. Another user cannot touch this project.
+    const other = await admin.auth.admin.createUser({ email: otherEmail, password, email_confirm: true });
+    otherId = other.data.user?.id ?? "";
+    const otherClient: SupabaseClient = createClient(url, anonKey, opts);
+    await otherClient.auth.signInWithPassword({ email: otherEmail, password });
+    const otherQueue = await otherClient.rpc("queue_render", { p_project: projectId, p_expected: 1 });
+    pass("Another user cannot queue a render on it", !!otherQueue.error);
+    const otherMsg = await otherClient.from("messages").insert({ project_id: projectId, user_id: otherId, stage: "storyboard", role: "user", content: "x" });
+    pass("Another user cannot add messages to it", !!otherMsg.error);
+    const otherRead = await otherClient.from("projects").select("id").eq("id", projectId);
+    pass("Another user cannot see it", !otherRead.error && (otherRead.data ?? []).length === 0);
 
     // 6. Users cannot fake progress or call worker functions.
     await user.from("jobs").update({ progress: 99 }).eq("id", job1.data?.id);
@@ -82,6 +99,7 @@ async function main() {
     pass("User can read the heartbeat", seen.data?.worker_version === "db-check");
   } finally {
     // 8. Clean up: deleting the user removes everything they own.
+    if (otherId) await admin.auth.admin.deleteUser(otherId);
     if (userId) {
       const del = await admin.auth.admin.deleteUser(userId);
       const left = await admin.from("projects").select("id").eq("user_id", userId);

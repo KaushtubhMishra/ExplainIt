@@ -25,7 +25,9 @@ export function Storyboard({ projectId, initialPlan, initialVersion }: {
   const router = useRouter();
   const [plan, setPlan] = useState(initialPlan);
   const [selected, setSelected] = useState(0);
-  const [saveState, setSaveState] = useState<SaveState>("saved");
+  const [saveState, setSaveStateRaw] = useState<SaveState>("saved");
+  const saveStateRef = useRef<SaveState>("saved");
+  const setSaveState = (state: SaveState) => { saveStateRef.current = state; setSaveStateRaw(state); };
   const [saveError, setSaveError] = useState("");
   const [changed, setChanged] = useState<Set<string>>(new Set());
   const [request, setRequest] = useState("");
@@ -107,6 +109,17 @@ export function Storyboard({ projectId, initialPlan, initialVersion }: {
     if (timer.current) clearTimeout(timer.current);
     await save(); // the change request must start from the latest saved version
     if (conflicted.current) return;
+    // Never send a request while edits are unsaved: the AI works from the saved version,
+    // and its answer would replace the unsaved edits.
+    if (dirty.current || saveStateRef.current !== "saved") {
+      setReply({
+        ok: false,
+        text: saveStateRef.current === "invalid"
+          ? "Your latest edits aren't saved yet: fill in the highlighted empty fields, then send the change again."
+          : "Your latest edits aren't saved yet. Wait for \"Saved\" (or check your connection), then send the change again.",
+      });
+      return;
+    }
     setRevising(true);
     setReply(null);
     try {
@@ -189,7 +202,7 @@ export function Storyboard({ projectId, initialPlan, initialVersion }: {
               <input value={request} onChange={(e) => setRequest(e.target.value)} maxLength={1000} disabled={revising}
                 placeholder="e.g. Make scene 3 simpler for kids"
                 className="min-w-0 flex-1 rounded-xl bg-surface-low px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue" />
-              <button type="submit" disabled={revising || request.trim().length < 3} aria-label="Send change request"
+              <button type="submit" disabled={revising || request.trim().length < 3 || saveState === "invalid" || saveState === "conflict"} aria-label="Send change request"
                 className="flex items-center gap-1.5 rounded-xl bg-blue px-4 font-semibold text-card disabled:opacity-50">
                 {revising ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
               </button>

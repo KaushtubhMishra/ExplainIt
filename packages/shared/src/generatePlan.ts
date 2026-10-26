@@ -44,7 +44,7 @@ function getAt(obj: unknown, path: (string | number)[]): unknown {
   return path.reduce<unknown>((cur, key) => (cur as Record<string | number, unknown>)?.[key], obj);
 }
 
-function validate(text: string, durationTarget: DurationTargetType, themeChoice: ThemeChoiceType, topicText: string): { plan?: ScenePlanType; errors: string[]; warnings: string[] } {
+function validate(text: string, language: LanguageType, durationTarget: DurationTargetType, themeChoice: ThemeChoiceType, topicText: string): { plan?: ScenePlanType; errors: string[]; warnings: string[] } {
   let raw: unknown;
   try {
     raw = extractJson(text);
@@ -56,6 +56,7 @@ function validate(text: string, durationTarget: DurationTargetType, themeChoice:
   if (raw && typeof raw === "object") {
     const r = raw as Record<string, unknown>;
     r.durationTarget = durationTarget;
+    r.language = language; // the project's language, never the model's choice (it decides voice and word range)
     // A theme the user chose always wins; with "auto" the model's choice is kept.
     if (themeChoice !== "auto") r.theme = themeChoice;
   }
@@ -168,7 +169,7 @@ export async function generatePlan(args: {
   const topicText = `${args.topic}\n${args.notes ?? ""}`;
   return runPlanLoop({
     system, user, chain: args.chain, maxRepairs: args.maxRepairs ?? 2, log: args.log ?? (() => {}),
-    check: (text) => validate(text, durationTarget, themeChoice, topicText), promptName: SCRIPT_PROMPT_VERSION,
+    check: (text) => validate(text, args.language, durationTarget, themeChoice, topicText), promptName: SCRIPT_PROMPT_VERSION,
   });
 }
 
@@ -203,7 +204,7 @@ You are now REVISING an existing plan, not writing a new one.
   const result = await runPlanLoop({
     system: system + reviseRules, user, chain: args.chain, maxRepairs: args.maxRepairs ?? 2,
     log: args.log ?? (() => {}), promptName: "revise.v1",
-    check: (text) => validate(text, durationTarget, args.plan.theme, args.topicText),
+    check: (text) => validate(text, args.plan.language, durationTarget, args.plan.theme, args.topicText),
   });
   return { ...result, changedSceneIds: result.plan ? changedScenes(args.plan, result.plan) : [] };
 }

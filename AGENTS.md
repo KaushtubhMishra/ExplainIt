@@ -63,9 +63,18 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
    together, never one alone.
 4. **Every database change is a new migration file** in `supabase/migrations/`, named
    `YYYYMMDDHHMMSS_description.sql`. Never edit an applied migration. Row-level security
-   stays on for every table.
+   stays on for every table, and every insert policy on a row that points at a project must
+   also check that the project belongs to `auth.uid()`.
+8. **Render jobs are created only by the `queue_render(project, expected_version)` database
+   function**, which checks ownership and the version and copies the plan from the project.
+   There is no insert policy on `jobs`. The worker must still re-validate every job's plan with
+   `ScenePlan` and `checkPlanRules` before rendering, and fail the job if it doesn't pass.
+9. **Model output never decides the project's language, length, or theme.** `validate()` in
+   `generatePlan.ts` overwrites them from the project; keep it that way.
 5. **Do not commit or push.** The owner reviews each feature and pushes to GitHub himself.
-   Leave changes uncommitted unless he asks.
+   Leave changes uncommitted unless he asks. Each feature arrives as a zip containing the whole
+   repository, which replaces the local copy: tell the owner about any local change (a branch,
+   a fix, a config edit) so it can be added to the next zip instead of being lost.
 6. **One feature at a time.** Build only the feature asked for; do not refactor unrelated
    code. Report what changed and how to test it.
 7. **Windows.** The owner works on Windows (PowerShell). Windows paths in commands and docs
