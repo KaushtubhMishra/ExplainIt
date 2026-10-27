@@ -77,7 +77,10 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
    lock; in-progress calls count as the worst case of 6 Gemini calls; 40 per hour), then recorded
    once with `finish_llm_call()`, which can only finish a row that is still pending (`ok is
    null`) — a second call on the same row is refused, not silently accepted. Use the helpers in
-   `apps/web/lib/api.ts`; never call Gemini from a route without a reservation.
+   `apps/web/lib/api.ts`; never call Gemini from a route without a reservation. Because each new
+   reservation must leave room for the full 6-call worst case, the effective ceiling is 34 calls
+   already used in the rolling hour, not 40 — a new request is refused once more than 34 are in
+   use, even though none of them individually went over 40. This is intentional, not a bug.
 8. **Model output never decides the project's language, length, or theme.** `validate()` in
    `generatePlan.ts` overwrites them from the project; keep it that way. The one exception is a
    change request that explicitly names the theme ("use the sunset theme", "change the colour to

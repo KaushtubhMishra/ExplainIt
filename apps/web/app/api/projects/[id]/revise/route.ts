@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!body.success) return apiError(422, "validation_failed", body.error.issues[0]?.message ?? "Please check your request.");
 
   const { data: project } = await supabase.from("projects")
-    .select("id, title, input_text, scene_plan, plan_version").eq("id", id).maybeSingle();
+    .select("id, title, input_text, scene_plan, plan_version, duration_target").eq("id", id).maybeSingle();
   if (!project) return apiError(404, "not_found", "That project doesn't exist.");
   if (project.plan_version !== body.data.planVersion) {
     return apiError(409, "version_conflict", "This project changed in another tab. Reload to see the latest version.");
@@ -52,12 +52,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await finishLlmCall(supabase, reservation.id, { ok: false, providersTried: [], attempts: 1 }, started);
     return apiError(500, "internal", "Something went wrong while making the change. Please try again.");
   }
-  const { plan, report, changedSceneIds } = result;
+  const { plan, report, changedSceneIds, wordRangeConflict } = result;
 
   await finishLlmCall(supabase, reservation.id, report, started);
 
   if (!plan) {
     if (report.lastErrors.length === 0) return apiError(503, "llm_unavailable", "The script writer is busy right now. Please try again in a minute.");
+    if (wordRangeConflict) {
+      return apiError(
+        502, "script_failed",
+        `That change would push the video outside its ${project.duration_target}-second word range, and the other scenes can't be touched to make up the difference. Try asking for less of a change, or ask to adjust another scene too.`,
+        { problems: report.lastErrors },
+      );
+    }
     return apiError(502, "script_failed", "Couldn't make that change while keeping the script valid. Try wording it differently.", { problems: report.lastErrors });
   }
 
@@ -83,5 +90,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     { project_id: id, user_id: userId, stage: "storyboard", role: "assistant", content: reply },
   ]);
 
-  return NextResponse.json({ scenePlan: plan, planVersion: newVersion, changedSceneIds, reply });
+  return NextResponse.json({ scenePlan: plan, planVersion: newVersion, changedSceneIds, reply, themeChanged });
 }

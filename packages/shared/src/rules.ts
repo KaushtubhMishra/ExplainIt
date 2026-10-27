@@ -42,43 +42,96 @@ export function totalWords(plan: ScenePlanType): number {
 }
 
 // Errors make the plan fail (and trigger a repair retry). Warnings are only reported.
-// Does a change request ask for a different colour theme? Only an EXPLICIT theme word
-// ("theme", "colour"/"color", "colour scheme", थीम, रंग) counts as asking to change the
-// look; a theme name on its own ("the sky is blue", "a forest fire") never does, since
-// those are ordinary words. Phrases like "make it", "switch to", or "change to" are not
-// enough by themselves either.
-const THEME_WORD = /\b(theme|colou?r|colou?rs|colou?r scheme)\b|थीम|रंग/;
+// Does a change request ask for a different colour theme? Two separate ways to trigger it:
+// (1) An explicit theme word ("theme", थीम) anywhere, together with a theme name anywhere
+//     in the request.
+// (2) "colour"/"color" directly next to a theme name ("sunset colours", "colour to forest",
+//     "colour scheme: sky") — "next to" means immediately adjacent, with only a short,
+//     specific connector word allowed between them (to/as/like/scheme/a colon or dash).
+// A theme name on its own ("the sky is blue", "a forest fire") never triggers this, since
+// those are ordinary words describing something, not a request to change the app's look —
+// including when "colour"/"रंग" appears elsewhere in the same sentence rather than right
+// next to the name ("the sky changes colour at sunset", "आसमान का रंग रात में काला").
+const EXPLICIT_THEME_WORD = /\btheme\b|थीम/;
 const THEME_NAMES: Record<string, "sky" | "forest" | "sunset" | "night"> = {
   sky: "sky", forest: "forest", sunset: "sunset", night: "night",
   "आकाश": "sky", "जंगल": "forest", "सूर्यास्त": "sunset", "रात": "night",
 };
+// English only: "रंग" alone is deliberately not a trigger (see note above) — only an
+// explicit "theme"/थीम mention is, for Hindi.
+const COLOUR_THEN_THEME = /\bcolou?rs?\b\s*(?:scheme)?\s*[:-]?\s*(?:to|as|like)?\s*(sky|forest|sunset|night)\b/i;
+const THEME_THEN_COLOUR = /\b(sky|forest|sunset|night)\b\s*colou?rs?\b/i;
+
 export function requestedTheme(request: string): "sky" | "forest" | "sunset" | "night" | null {
   const text = request.toLowerCase();
-  if (!THEME_WORD.test(text)) return null;
-  for (const [word, theme] of Object.entries(THEME_NAMES)) {
-    if (new RegExp(`(^|[^\\p{L}\\p{M}])${word}($|[^\\p{L}\\p{M}])`, "u").test(text)) return theme;
+  if (EXPLICIT_THEME_WORD.test(text)) {
+    for (const [word, theme] of Object.entries(THEME_NAMES)) {
+      if (new RegExp(`(^|[^\\p{L}\\p{M}])${word}($|[^\\p{L}\\p{M}])`, "u").test(text)) return theme;
+    }
+    return null;
   }
-  return null;
+  const m = COLOUR_THEN_THEME.exec(text) ?? THEME_THEN_COLOUR.exec(text);
+  return m ? (m[1].toLowerCase() as "sky" | "forest" | "sunset" | "night") : null;
 }
 
-// Scene numbers a change request explicitly names ("scene 4", "scenes 2 and 3"). Matches
-// the "Scene N" convention used in the revise prompt (1-based, by position). Returns null
-// when no scene is named, meaning the request is free to touch the whole plan.
+// Scene numbers a change request explicitly names ("scene 4", "scenes 2 and 3", "scenes
+// 2-4", "दृश्य 3"). Only numbers that are part of the scene reference itself count — a
+// number elsewhere in the same sentence ("scene 2 mentions 5G", "say it takes 2 minutes")
+// is never picked up, because the match stops as soon as it hits a word that isn't part of
+// a number, a range (2-4, 2 to 4), or a list joined by "," / "and" / "&". Returns null when
+// no scene is named, meaning the request is free to touch the whole plan.
+const NUMBER_LIST = /\s*(?:#|no\.?|number)?\s*(\d+(?:\s*(?:-|–|to)\s*\d+)?(?:\s*(?:,|and|&)\s*\d+(?:\s*(?:-|–|to)\s*\d+)?)*)/.source;
+const SCENE_NUMBERS_EN = new RegExp(`\\bscenes?\\b${NUMBER_LIST}`, "gi");
+const SCENE_NUMBERS_HI = new RegExp(`दृश्य${NUMBER_LIST}`, "g");
+
+function addNumbersFromList(listText: string, into: Set<number>) {
+  for (const part of listText.split(/\s*(?:,|and|&)\s*/i)) {
+    const range = part.match(/^(\d+)\s*(?:-|–|to)\s*(\d+)$/);
+    if (range) {
+      const [lo, hi] = [Number(range[1]), Number(range[2])].sort((a, b) => a - b);
+      for (let n = lo; n <= hi; n++) into.add(n);
+    } else if (/^\d+$/.test(part)) {
+      into.add(Number(part));
+    }
+  }
+}
+
 export function targetedSceneNumbers(request: string): number[] | null {
   const nums = new Set<number>();
-  for (const m of request.matchAll(/\bscenes?\b[^.?!]{0,60}/gi)) {
-    for (const numStr of m[0].match(/\d+/g) ?? []) nums.add(Number(numStr));
-  }
+  for (const m of request.matchAll(SCENE_NUMBERS_EN)) addNumbersFromList(m[1], nums);
+  for (const m of request.matchAll(SCENE_NUMBERS_HI)) addNumbersFromList(m[1], nums);
   return nums.size ? [...nums].sort((a, b) => a - b) : null;
+}
+
+// Is a change request ONLY about the colour theme, with nothing else asked for? If it also
+// asks for a content change ("use the sunset theme and make it shorter"), the content part
+// must not be silently dropped, so scene content is left free in that case (matching how
+// "shorten the intro" alone is already free) while the theme still switches.
+const THEME_REQUEST_STOPWORDS = new Set([
+  "use", "the", "a", "an", "to", "switch", "change", "set", "it", "its", "please", "now",
+  "this", "that", "my", "our", "video", "project", "theme", "themes", "colour", "colours",
+  "color", "colors", "scheme", "like", "as", "with", "of", "for", "and", "also",
+  "करो", "कर", "दो", "की", "का", "के", "को", "वाली", "वाला", "जैसा", "बदलो", "बदल", "से", "में", "है", "थीम", "रंग",
+]);
+export function isPureThemeRequest(request: string, theme: "sky" | "forest" | "sunset" | "night"): boolean {
+  const themeWordsToStrip = new Set([theme, ...Object.entries(THEME_NAMES).filter(([, t]) => t === theme).map(([w]) => w)]);
+  const leftover = request
+    .toLowerCase()
+    .split(/[^\p{L}\p{M}\p{N}]+/u)
+    .filter((w) => w && !THEME_REQUEST_STOPWORDS.has(w) && !themeWordsToStrip.has(w));
+  return leftover.length === 0;
 }
 
 // After a revision, force every scene the user did NOT name back to its exact original
 // content. The model is told to leave other scenes untouched, but does not reliably do
 // so on its own, so this is enforced here rather than trusted to the prompt alone.
+// Returns null, instead of silently accepting the model's full (unrestored) answer, when
+// it added or removed a scene: positions would no longer line up with the original, so
+// there is no safe way to tell which of its scenes were meant to replace which.
 export function mergeTargetedScenes(
   original: ScenePlanType, candidate: ScenePlanType, targetNumbers: number[],
-): ScenePlanType {
-  if (candidate.scenes.length !== original.scenes.length) return candidate; // too different to merge safely
+): ScenePlanType | null {
+  if (candidate.scenes.length !== original.scenes.length) return null;
   const targetIdx = new Set(targetNumbers.map((n) => n - 1));
   const scenes = original.scenes.map((origScene, i) => (targetIdx.has(i) ? candidate.scenes[i] : origScene));
   return { ...candidate, scenes };

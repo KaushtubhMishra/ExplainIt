@@ -169,7 +169,10 @@ export function Storyboard({ projectId, initialPlan, initialVersion, onRewrite }
       setReplayKey((k) => k + 1); // replay the (possibly already-selected) scene from the start
       setReply({ ok: true, text: body.reply });
       setRequest("");
-      setProjectTheme(next.theme); // keeps the page's theme chip in sync, with no page reload or remount
+      // Only sync the chip when the theme actually changed: an "Auto" project's saved plan
+      // always carries a concrete theme (Gemini's pick), so updating on every revise would
+      // flip the chip from "Auto theme" to that concrete theme even when nothing changed.
+      if (body.themeChanged) setProjectTheme(next.theme);
     } catch {
       setReply({ ok: false, text: "Couldn't reach the server. Please try again." });
     } finally {
