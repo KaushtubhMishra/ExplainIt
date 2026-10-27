@@ -21,9 +21,11 @@ find bugs, and write a clear report. You test; you do not fix.
 - Start the website with `npm run dev`, then open http://localhost:3000.
 - Signed-in pages: Create (/), My videos (/videos), Settings (/settings), and a project page
   (/projects/<id>) that holds the storyboard.
-- Not built yet, so do NOT report these as bugs: rendering videos, the "Renderer offline" pill
-  (always offline for now), the "Renders today 0/5" counter (not live yet), the My videos list
-  (shows an empty state), Google sign-in (disabled with a note), and Brainstorm (removed from V1).
+- Not built yet, so do NOT report these as bugs: actually rendering a video (the worker, K1-K8,
+  doesn't exist yet), the Download and Render-again buttons on My videos (they show an honest
+  "not built yet" message rather than doing anything), the renderer pill always reading
+  "Renderer offline" (there's no worker yet to report in), and Google sign-in (disabled with a
+  note). Brainstorm is removed from V1 entirely, at the UI, API, and database level.
 
 ## Setup
 

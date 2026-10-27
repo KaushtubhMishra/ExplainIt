@@ -16,7 +16,7 @@ type Rpc = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ d
 // Reserve one AI call BEFORE calling Gemini. The database does this under a per-user lock,
 // so requests sent at the same moment can't all slip past the limit.
 export async function reserveLlmCall(
-  supabase: Rpc, kind: "script" | "revise" | "brainstorm", projectId: string | null,
+  supabase: Rpc, kind: "script" | "revise", projectId: string | null,
 ): Promise<{ id: number } | { response: NextResponse }> {
   const { data, error } = await supabase.rpc("reserve_llm_call", { p_kind: kind, p_project: projectId, p_limit: GEMINI_CALLS_PER_HOUR });
   if (!error) return { id: Number(data) };

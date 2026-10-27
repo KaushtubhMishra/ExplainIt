@@ -6,8 +6,10 @@ import { Play } from "lucide-react";
 import { AccountMenu } from "./AccountMenu";
 import { NAV_ITEMS, isActive } from "./nav-items";
 
-// Top bar on every signed-in page. Renderer status and the renders counter become live in W12.
-export function TopBar({ name, email }: { name: string; email: string }) {
+type Props = { name: string; email: string; rendererOnline: boolean; rendersUsed: number; rendersLimit: number };
+
+// Top bar on every signed-in page.
+export function TopBar({ name, email, rendererOnline, rendersUsed, rendersLimit }: Props) {
   const pathname = usePathname();
   return (
     <header className="sticky top-0 z-20 border-b border-line/60 bg-card/90 pt-[env(safe-area-inset-top)] backdrop-blur">
@@ -30,11 +32,11 @@ export function TopBar({ name, email }: { name: string; email: string }) {
 
         <div className="ml-auto flex items-center gap-2">
           <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-low px-3 py-1 text-xs font-semibold text-ink-soft">
-            <span className="size-2 rounded-full bg-line" aria-hidden />
-            Renderer offline
+            <span className={`size-2 rounded-full ${rendererOnline ? "bg-green" : "bg-line"}`} aria-hidden />
+            Renderer {rendererOnline ? "online" : "offline"}
           </span>
           <span className="hidden whitespace-nowrap rounded-full bg-blue-soft px-3 py-1 text-xs font-semibold text-navy sm:inline">
-            Renders today 0/5
+            Renders today {rendersUsed}/{rendersLimit}
           </span>
           <AccountMenu name={name} email={email} />
         </div>

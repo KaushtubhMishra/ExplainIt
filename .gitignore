@@ -26,3 +26,7 @@ supabase/.branches/
 .vs/
 .DS_Store
 Thumbs.db
+
+# Local project status tracker: lives in the repo for quick reference, but is never
+# committed (it changes on almost every turn and isn't meant for GitHub history).
+PROJECT_STATUS.md

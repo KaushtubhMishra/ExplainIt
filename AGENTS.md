@@ -22,6 +22,8 @@ apps/web/                Next.js 16 website (App Router): the user interface and
   components/storyboard/ storyboard: scene editor, autosave, live preview, change requests
   app/login/             sign-in page (email link, Google)
   app/auth/              sign-in callback and sign-out routes
+  lib/videos.ts          My videos: deriveLibraryState() (pure) + libraryEntries() (fetches)
+  lib/renderer.ts        real renderer status, today's render count, hourly AI usage (W11/W12)
   proxy.ts               runs before every page: refreshes the session, guards pages
   components/            page frame (top bar, bottom tabs, account menu)
   lib/                   Supabase clients (server, browser) and the signed-in user helper
@@ -99,6 +101,9 @@ Media lives outside the repo, in `D:\ExplainIt` (runs, audio cache, finished vid
 ## Key decisions (do not change without asking)
 
 - **Languages:** English (`en-IN`, Indian accent) and Hindi (`hi-IN`) only. No Hinglish.
+- **No Brainstorm start mode.** Removed entirely, not just hidden: `'brainstorm'` is no longer a
+  valid `input_mode`, `chat_stage`, or `llm_kind` value at the database level (migration
+  `20261027000100_remove_brainstorm.sql`), so a crafted API request can't create one either.
 - **Length:** the user picks 60 or 90 seconds. Word ranges: English 125-155 / 190-215,
   Hindi 140-170 / 210-235 (measured edge-tts pace: about 140 and 158 words per minute).
 - **Voice:** edge-tts, Neerja (English) and Swara (Hindi), at +10% speed. Azure Speech free

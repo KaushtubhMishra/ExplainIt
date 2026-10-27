@@ -6,7 +6,7 @@ import { ScriptPanel } from "@/components/ScriptPanel";
 import { getProject, STAGE_LABEL } from "@/lib/projects";
 
 const LANG: Record<string, string> = { "en-IN": "English", "hi-IN": "हिंदी" };
-const MODE: Record<string, string> = { idea: "Idea", notes: "Notes", brainstorm: "Brainstorm" };
+const MODE: Record<string, string> = { idea: "Idea", notes: "Notes" };
 
 export default async function ProjectPage({ params, searchParams }: {
   params: Promise<{ id: string }>; searchParams: Promise<{ write?: string }>;

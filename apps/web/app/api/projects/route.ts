@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     .from("projects")
     .insert({
       user_id: userId,
-      title: titleFrom(b.inputMode, b.inputText),
+      title: titleFrom(b.inputText),
       language: b.language,
       duration_target: b.durationTarget,
       theme: b.theme,
