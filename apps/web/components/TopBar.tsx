@@ -2,15 +2,40 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Play } from "lucide-react";
 import { AccountMenu } from "./AccountMenu";
 import { NAV_ITEMS, isActive } from "./nav-items";
 
 type Props = { name: string; email: string; rendererOnline: boolean; rendersUsed: number; rendersLimit: number };
 
-// Top bar on every signed-in page.
+const POLL_MS = 30_000;
+
+// Top bar on every signed-in page. Initial values come from the server (so the first paint
+// is correct with no flash), then this polls /api/status so the pill and counter stay live
+// while navigating — a layout's server-fetched props do not refetch on their own when
+// moving between pages within the app, only on a full reload.
 export function TopBar({ name, email, rendererOnline, rendersUsed, rendersLimit }: Props) {
   const pathname = usePathname();
+  const [online, setOnline] = useState(rendererOnline);
+  const [used, setUsed] = useState(rendersUsed);
+
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/status");
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        setOnline(body.renderer.online);
+        setUsed(body.renders.used);
+      } catch {
+        // A missed poll just keeps the last known values; the next one tries again.
+      }
+    };
+    const id = setInterval(poll, POLL_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
   return (
     <header className="sticky top-0 z-20 border-b border-line/60 bg-card/90 pt-[env(safe-area-inset-top)] backdrop-blur">
       <div className="mx-auto flex h-16 max-w-5xl items-center gap-3 px-4">
@@ -32,11 +57,11 @@ export function TopBar({ name, email, rendererOnline, rendersUsed, rendersLimit 
 
         <div className="ml-auto flex items-center gap-2">
           <span className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-surface-low px-3 py-1 text-xs font-semibold text-ink-soft">
-            <span className={`size-2 rounded-full ${rendererOnline ? "bg-green" : "bg-line"}`} aria-hidden />
-            Renderer {rendererOnline ? "online" : "offline"}
+            <span className={`size-2 rounded-full ${online ? "bg-green" : "bg-line"}`} aria-hidden />
+            Renderer {online ? "online" : "offline"}
           </span>
           <span className="hidden whitespace-nowrap rounded-full bg-blue-soft px-3 py-1 text-xs font-semibold text-navy sm:inline">
-            Renders today {rendersUsed}/{rendersLimit}
+            Renders today {used}/{rendersLimit}
           </span>
           <AccountMenu name={name} email={email} />
         </div>

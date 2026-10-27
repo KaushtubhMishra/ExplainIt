@@ -28,13 +28,21 @@ function istDayStartUtcIso(now = new Date()): string {
   return new Date(istMidnightAsUtc - IST_OFFSET_MS).toISOString();
 }
 
-// How many renders the signed-in user has started today (IST calendar day), regardless of
-// outcome. Security rules already limit "jobs" reads to the signed-in user's own rows.
+// How many renders the signed-in user has started today (IST calendar day) and not
+// cancelled. A job cancelled right after being queued never actually rendered anything, so
+// it shouldn't count against the day's total any more than it should once X2 enforces a
+// real cap. Security rules already limit "jobs" reads to the signed-in user's own rows.
 export async function rendersToday(): Promise<number> {
   const supabase = await createSupabaseServer();
-  const { count } = await supabase.from("jobs").select("id", { count: "exact", head: true }).gte("created_at", istDayStartUtcIso());
+  const { count } = await supabase.from("jobs").select("id", { count: "exact", head: true })
+    .gte("created_at", istDayStartUtcIso()).neq("status", "cancelled");
   return count ?? 0;
 }
+
+// The usable limit a user can actually reach before being refused: reserve_llm_call() leaves
+// room for a full in-progress request (6 calls) before allowing a new one, so a request is
+// refused once more than (40 - 6) = 34 calls are already used, not 40 — see AGENTS.md rule 7.
+export const EFFECTIVE_AI_LIMIT_PER_HOUR = GEMINI_CALLS_PER_HOUR - WORST_CASE_CALLS_PER_REQUEST;
 
 // Real Gemini calls used in the last hour, counting an in-progress call as the same worst
 // case reserve_llm_call() does — so this always matches what would actually gate a new request.
@@ -43,5 +51,5 @@ export async function aiUsageThisHour(): Promise<{ used: number; limit: number }
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { data } = await supabase.from("llm_calls").select("ok, attempts").gte("created_at", hourAgo);
   const used = (data ?? []).reduce((sum, row) => sum + (row.ok === null ? WORST_CASE_CALLS_PER_REQUEST : Math.max(row.attempts, 1)), 0);
-  return { used, limit: GEMINI_CALLS_PER_HOUR };
+  return { used, limit: EFFECTIVE_AI_LIMIT_PER_HOUR };
 }
