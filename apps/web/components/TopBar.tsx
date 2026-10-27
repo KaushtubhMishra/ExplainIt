@@ -23,6 +23,7 @@ export function TopBar({ name, email, rendererOnline, rendersUsed, rendersLimit 
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
+      if (document.hidden) return; // a background tab doesn't need to keep checking
       try {
         const res = await fetch("/api/status");
         if (!res.ok || cancelled) return;
@@ -33,6 +34,7 @@ export function TopBar({ name, email, rendererOnline, rendersUsed, rendersLimit 
         // A missed poll just keeps the last known values; the next one tries again.
       }
     };
+    void poll(); // check once right away, not just after the first interval
     const id = setInterval(poll, POLL_MS);
     return () => { cancelled = true; clearInterval(id); };
   }, []);

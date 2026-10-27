@@ -147,7 +147,7 @@ export function LibraryCard({ entry }: { entry: LibraryEntry }) {
 
   return (
     <li className="flex items-center gap-4 rounded-2xl border border-line/60 bg-card p-3 pr-4">
-      <Link href={`/projects/${project.id}`} className="flex min-w-0 flex-1 items-center gap-4" aria-label={`Open ${project.title}`}>
+      <Link href={`/projects/${project.id}`} className="flex min-w-0 flex-1 items-center gap-4">
         <span className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-navy-deep to-blue">
           <Clapperboard className="size-6 text-white" aria-hidden />
         </span>

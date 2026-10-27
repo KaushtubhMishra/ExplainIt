@@ -80,7 +80,12 @@ export default async function SettingsPage() {
           </div>
           <div className="rounded-xl bg-surface-low p-3">
             <dt className="text-xs text-ink-soft">AI requests this hour</dt>
-            <dd className="font-semibold text-navy">{ai.used} of {ai.limit}</dd>
+            {/* A request in progress is counted as its full worst case (6) before it's known
+                to have finished, so the true count can transiently read above the limit
+                (for example 36 of 34) right when a new request would be refused. */}
+            <dd className="font-semibold text-navy">
+              {ai.used >= ai.limit ? "Limit reached for now" : `${ai.used} of ${ai.limit}`}
+            </dd>
           </div>
         </dl>
       </section>

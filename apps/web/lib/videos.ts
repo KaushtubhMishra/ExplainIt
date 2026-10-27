@@ -4,7 +4,7 @@ export type LibraryProject = {
   id: string; title: string; language: string; duration_target: number;
   theme: string; stage: string; updated_at: string;
 };
-type JobRow = { id: string; project_id: string; status: string; progress: number; error: string | null };
+type JobRow = { id: string; project_id: string; status: string; progress: number; error: string | null; plan_version: number };
 type VideoRow = { project_id: string; expires_at: string; deleted_at: string | null; created_at: string };
 
 export type LibraryCardState =
@@ -14,6 +14,8 @@ export type LibraryCardState =
   | { kind: "ready"; expiresAt: string }
   | { kind: "expired" }
   | { kind: "failed"; jobId: string; error: string };
+
+const ACTIVE_STATUSES = new Set(["voicing", "rendering", "uploading"]);
 
 // Defensive fallbacks too, so a project can never show a raw enum word (for example
 // "rendering" or "ready" with no matching job or video row, which shouldn't normally
@@ -26,20 +28,27 @@ const DRAFT_LABEL: Record<string, string> = {
 };
 
 // Pure, so it's unit-testable without a database: given what's known about a project, its
-// most recent render job (if one is active or failed), and its most recent video (if any),
-// decide which of the six library states to show. `now` is injectable for testing.
-// Priority: an active job is the freshest signal; a failed job is more urgent to surface
-// than an old video from an earlier attempt; only then does an existing video's own
-// expiry decide ready vs. expired.
+// SINGLE most recent job (of any status, or undefined if it has never been rendered), and
+// its most recent video (if any), decide which of the six library states to show. `now` is
+// injectable for testing.
+//
+// Only the single latest job is used, deliberately, rather than separately tracking "the
+// latest active job" and "the latest failed job": the database allows only one active job
+// per project at a time, so a project's jobs are always processed in creation order and
+// the latest job by created_at is always the latest render attempt, full stop. That means
+// if the latest job succeeded, there is no way for an older failed job to be more recent
+// than the video it produced — so a stale "Failed" card can never outrank a newer "Ready"
+// one, which a two-query (active + failed) version could get wrong.
 export function deriveLibraryState(
-  project: { stage: string }, activeJob: JobRow | undefined, failedJob: JobRow | undefined,
-  latestVideo: VideoRow | undefined, now = new Date(),
+  project: { stage: string }, latestJob: JobRow | undefined, latestVideo: VideoRow | undefined, now = new Date(),
 ): LibraryCardState {
-  if (activeJob) {
-    return activeJob.status === "queued" ? { kind: "queued" } : { kind: "rendering", progress: activeJob.progress };
-  }
-  if (failedJob) {
-    return { kind: "failed", jobId: failedJob.id, error: failedJob.error ?? "The render failed for an unknown reason." };
+  if (latestJob) {
+    if (latestJob.status === "queued") return { kind: "queued" };
+    if (ACTIVE_STATUSES.has(latestJob.status)) return { kind: "rendering", progress: latestJob.progress };
+    if (latestJob.status === "failed") {
+      return { kind: "failed", jobId: latestJob.id, error: latestJob.error ?? "The render failed for an unknown reason." };
+    }
+    // "done" or "cancelled": fall through to the video (if the job finished) or draft check.
   }
   if (latestVideo) {
     const expired = latestVideo.deleted_at !== null || new Date(latestVideo.expires_at) <= now;
@@ -51,8 +60,9 @@ export function deriveLibraryState(
 export type LibraryEntry = { project: LibraryProject; state: LibraryCardState };
 
 // Every project the signed-in user has (security rules limit this to their own), each with
-// its current library state. Separate queries rather than a join, since only a handful of
-// rows exist for one person's account; videos is capped since it only grows over time.
+// its current library state. Jobs and videos are both scoped to exactly these project ids,
+// rather than a row-count cap, so an older project's video is never hidden just because
+// the account has accumulated many rows over time.
 export async function libraryEntries(): Promise<LibraryEntry[]> {
   const supabase = await createSupabaseServer();
   const { data: projects } = await supabase
@@ -60,17 +70,18 @@ export async function libraryEntries(): Promise<LibraryEntry[]> {
     .select("id, title, language, duration_target, theme, stage, updated_at")
     .order("updated_at", { ascending: false });
   if (!projects?.length) return [];
+  const projectIds = projects.map((p) => p.id);
 
-  const [{ data: activeJobs }, { data: failedJobs }, { data: videos }] = await Promise.all([
-    supabase.from("jobs").select("id, project_id, status, progress, error").in("status", ["queued", "voicing", "rendering", "uploading"]),
-    supabase.from("jobs").select("id, project_id, status, progress, error").eq("status", "failed").order("finished_at", { ascending: false }),
-    supabase.from("videos").select("project_id, expires_at, deleted_at, created_at").order("created_at", { ascending: false }).limit(200),
+  const [{ data: jobs }, { data: videos }] = await Promise.all([
+    supabase.from("jobs").select("id, project_id, status, progress, error, plan_version")
+      .in("project_id", projectIds).order("created_at", { ascending: false }),
+    supabase.from("videos").select("project_id, expires_at, deleted_at, created_at")
+      .in("project_id", projectIds).order("created_at", { ascending: false }),
   ]);
 
-  const activeByProject = new Map((activeJobs ?? []).map((j) => [j.project_id, j as JobRow]));
-  const failedByProject = new Map<string, JobRow>();
-  for (const j of (failedJobs ?? []) as JobRow[]) {
-    if (!failedByProject.has(j.project_id)) failedByProject.set(j.project_id, j); // first = newest (already ordered)
+  const latestJobByProject = new Map<string, JobRow>();
+  for (const j of (jobs ?? []) as JobRow[]) {
+    if (!latestJobByProject.has(j.project_id)) latestJobByProject.set(j.project_id, j); // first = newest (already ordered)
   }
   const latestVideoByProject = new Map<string, VideoRow>();
   for (const v of (videos ?? []) as VideoRow[]) {
@@ -79,8 +90,6 @@ export async function libraryEntries(): Promise<LibraryEntry[]> {
 
   return (projects as LibraryProject[]).map((project) => ({
     project,
-    state: deriveLibraryState(
-      project, activeByProject.get(project.id), failedByProject.get(project.id), latestVideoByProject.get(project.id),
-    ),
+    state: deriveLibraryState(project, latestJobByProject.get(project.id), latestVideoByProject.get(project.id)),
   }));
 }
